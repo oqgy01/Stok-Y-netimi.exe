@@ -518,18 +518,37 @@ df_calisma_alani['N11 & Zimmet'].fillna(0, inplace=True)
 df_calisma_alani['GMT Etopla'].fillna(0, inplace=True)
 df_calisma_alani['SİTA Etopla'].fillna(0, inplace=True)
 
-# "Toplam Stok Adedi" sütununu oluşturma ve verileri toplama
-df_calisma_alani["Toplam Stok Adedi"] = df_calisma_alani["StokAdedi"] + df_calisma_alani["N11 & Zimmet"] + df_calisma_alani["GMT Etopla"] + df_calisma_alani["SİTA Etopla"]
+# "Toplam Stok Adedi" sütununu oluştur
+df_calisma_alani["Toplam Stok Adedi Her Şey Dahil"] = df_calisma_alani["StokAdedi"] + df_calisma_alani["N11 & Zimmet"] + df_calisma_alani["GMT Etopla"] + df_calisma_alani["SİTA Etopla"]
 
-# "MorhipoKodu" sütununun adını değiştirme
+# "Toplam Stok Adedi" sütununu oluştur
+df_calisma_alani["Toplam Stok Adedi Site ve Diğer Depolar"] = df_calisma_alani["StokAdedi"] + df_calisma_alani["N11 & Zimmet"]
+
+
+
+
+
+
+
+
+# "MorhipoKodu" sütununun adını değiştirme /Komplo orduların
 df_calisma_alani = df_calisma_alani.rename(columns={"MorhipoKodu": "Günlük Satış Adedi"})
 df_calisma_alani['Günlük Satış Adedi'].fillna(0, inplace=True)
 
 # "Kaç Güne Biter" sütununu oluşturma ve "Toplam Stok Adedi" sütunundaki verileri "Günlük Satış Adedi" sütunundaki verilere bölme işlemi
-df_calisma_alani["Kaç Güne Biter"] = "Satış Adedi Yok"  # Varsayılan değer olarak "Satış Adedi Yok" atanır
+df_calisma_alani["Kaç Güne Biter Her Şey Dahil"] = "Satış Adedi Yok"  # Varsayılan değer olarak "Satış Adedi Yok" atanır
+df_calisma_alani["Kaç Güne Biter Site ve Diğer Depolar"] = "Satış Adedi Yok"  # Varsayılan değer olarak "Satış Adedi Yok" atanır
+
 
 non_zero_mask = df_calisma_alani["Günlük Satış Adedi"] != 0
-df_calisma_alani.loc[non_zero_mask, "Kaç Güne Biter"] = round(df_calisma_alani["Toplam Stok Adedi"] / df_calisma_alani["Günlük Satış Adedi"])
+df_calisma_alani.loc[non_zero_mask, "Kaç Güne Biter Her Şey Dahil"] = round(df_calisma_alani["Toplam Stok Adedi Her Şey Dahil"] / df_calisma_alani["Günlük Satış Adedi"])
+
+
+non_zero_mask = df_calisma_alani["Günlük Satış Adedi"] != 0
+df_calisma_alani.loc[non_zero_mask, "Kaç Güne Biter Site ve Diğer Depolar"] = round(df_calisma_alani["Toplam Stok Adedi Site ve Diğer Depolar"] / df_calisma_alani["Günlük Satış Adedi"])
+
+
+
 
 # "Görüntülenmenin Satışa Dönüş Oranı" sütunu
 df_calisma_alani["Görüntülenmenin Satışa Dönüş Oranı"] = "0"  # Varsayılan değer olarak "Satış Yok" atanır
@@ -548,7 +567,7 @@ df_calisma_alani["Resim"] = df_calisma_alani["Resim"] + ".jpeg"
 df_calisma_alani = df_calisma_alani.rename(columns={"StokAdedi": "İnstagram Stok Adedi"})
 
 # Sütun sıralamasını ayarlama
-column_order = ["UrunAdi", "İnstagram Stok Adedi", "Toplam Stok Adedi", "Günlük Satış Adedi", "Görüntülenme Adedi", "Görüntülenmenin Satışa Dönüş Oranı", "Kaç Güne Biter", "AlisFiyati", "SatisFiyati", "AramaTerimleri", "Resim", "GMT Etopla", "SİTA Etopla"]
+column_order = ["UrunAdi", "İnstagram Stok Adedi", "Toplam Stok Adedi Her Şey Dahil", "Toplam Stok Adedi Site ve Diğer Depolar", "Günlük Satış Adedi", "Görüntülenme Adedi", "Görüntülenmenin Satışa Dönüş Oranı", "Kaç Güne Biter Her Şey Dahil", "Kaç Güne Biter Site ve Diğer Depolar", "AlisFiyati", "SatisFiyati", "AramaTerimleri", "Resim", "GMT Etopla", "SİTA Etopla"]
 df_calisma_alani = df_calisma_alani[column_order]
 
 # Tekrarlanan satırları silme
@@ -599,7 +618,7 @@ with pd.ExcelWriter('sonuc_excel.xlsx', engine='xlsxwriter') as writer:
                 worksheet.write(j + 1, i, value, center_format)
 
     # "Resim" sütununun genişliğini 20 piksel olarak ayarla
-    worksheet.set_column('K:K', 20)
+    worksheet.set_column('M:M', 20)
 
 # Dosyanın adını değiştirme
 excel_file_name = "sonuc_excel.xlsx"
@@ -612,5 +631,4 @@ dosyalar = ["GMT ve SİTA.xlsx"]
 for dosya in dosyalar:
     if os.path.exists(dosya):
         os.remove(dosya)
-
 
