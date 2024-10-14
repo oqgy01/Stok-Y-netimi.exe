@@ -12,7 +12,7 @@ first_cell = soup.find("td", {"class": "s1"}).text.strip()
 print(first_cell)
 
 
-
+print("kalsaydın olmaz mıydı")
 
 import pandas as pd
 from io import BytesIO
