@@ -467,16 +467,16 @@ def match_and_update(row):
     # GMT ve SİTA dosyasında 'GMT Ürün Adı' sütununda arama yap ve 'GMT Etopla' değerini al
     gmt_row = gmt_sita_df[gmt_sita_df['GMT Ürün Adı'] == urun_adi]
     if not gmt_row.empty:
-        row['GMT Etopla'] = gmt_row['Unnamed: 11'].values[0]
+        row['GMT Etopla'] = gmt_row['GMT Etopla'].values[0]
     else:
-        row['Unnamed: 11'] = None
+        row['GMT Etopla'] = None
 
     # GMT ve SİTA dosyasında 'İSTA Ürün Adı' sütununda arama yap ve 'SİTA Etopla' değerini al
     sista_row = gmt_sita_df[gmt_sita_df['SİTA Ürün Adı'] == urun_adi]
     if not sista_row.empty:
-        row['SİTA Etopla'] = sista_row['Unnamed: 21'].values[0]
+        row['SİTA Etopla'] = sista_row['SİTA Etopla'].values[0]
     else:
-        row['Unnamed: 21'] = None
+        row['SİTA ETOPLA'] = None
 
     return row
 
