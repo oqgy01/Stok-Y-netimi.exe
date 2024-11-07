@@ -476,7 +476,7 @@ def match_and_update(row):
     if not sista_row.empty:
         row['SİTA Etopla'] = sista_row['SİTA Etopla'].values[0]
     else:
-        row['SİTA ETOPLA'] = None
+        row['SİTA Etopla'] = None
 
     return row
 
