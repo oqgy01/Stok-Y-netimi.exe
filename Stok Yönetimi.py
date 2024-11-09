@@ -38,10 +38,44 @@ from tqdm import tqdm
 import warnings
 from selenium.webdriver.chrome.service import Service
 from colorama import init, Fore, Style
+
+import pandas as pd
+from selenium import webdriver
+from selenium.webdriver.common.keys import Keys
+from io import BytesIO
+import numpy as np
+from selenium.webdriver.support.ui import Select
+from selenium.webdriver.common.by import By
+from selenium.webdriver.support import expected_conditions as EC
+from selenium.webdriver.support.ui import WebDriverWait
+import time
+from tqdm import tqdm
+import warnings
+from colorama import init, Fore, Style
+import threading
+from selenium.common.exceptions import TimeoutException, NoSuchElementException
+import chromedriver_autoinstaller
+from concurrent.futures import ThreadPoolExecutor
+import subprocess
+from selenium.common.exceptions import TimeoutException, WebDriverException
+from bs4 import BeautifulSoup
+from webdriver_manager.chrome import ChromeDriverManager
+from selenium.webdriver.chrome.service import Service
+from datetime import datetime
+from datetime import datetime, timedelta
+import shutil
+import os
+from openpyxl import load_workbook
+from openpyxl import Workbook
+from pathlib import Path
+import re
+import http.client
+import json
+import gc
+from concurrent.futures import ThreadPoolExecutor, as_completed
 warnings.filterwarnings("ignore")
 pd.options.mode.chained_assignment = None
 init(autoreset=True)
-
 
 
 
@@ -550,12 +584,282 @@ df_calisma_alani.loc[non_zero_mask, "Kaç Güne Biter Site ve Diğer Depolar"] =
 
 
 
+
+
+
+
+
+
+
+
 # "Görüntülenmenin Satışa Dönüş Oranı" sütunu
 df_calisma_alani["Görüntülenmenin Satışa Dönüş Oranı"] = "0"  # Varsayılan değer olarak "Satış Yok" atanır
 df_calisma_alani = df_calisma_alani.rename(columns={"HepsiBuradaKodu": "Görüntülenme Adedi"})
 df_calisma_alani['Görüntülenme Adedi'].fillna(0, inplace=True)
 non_zero_mask = df_calisma_alani["Görüntülenme Adedi"] != 0
 df_calisma_alani.loc[non_zero_mask, "Görüntülenmenin Satışa Dönüş Oranı"] = round((df_calisma_alani["Günlük Satış Adedi"] / df_calisma_alani["Görüntülenme Adedi"]) * 100, 2)
+
+
+
+# Değişiklikleri kaydetmek için dosyayı yeniden yaz
+df_calisma_alani.to_excel("sonuc_excel.xlsx", index=False)
+
+
+
+
+
+#region Satış Raporu Tarihini Düne Göre Ayarlama
+
+# Excel dosyasının ismi ve konumu
+filename = "Satış Raporu.xlsx"
+
+# Dosyanın indirilme tarihini kontrol eden fonksiyon
+def is_file_downloaded_today(file_path):
+    if os.path.exists(file_path):
+        # Dosyanın son değiştirilme tarihini al
+        file_modification_time = os.path.getmtime(file_path)
+        modification_date = datetime.fromtimestamp(file_modification_time).date()
+        # Bugünün tarihi ile karşılaştır
+        return modification_date == datetime.today().date()
+    return False
+
+# Eğer dosya bugün indirilmemişse Selenium işlemleri çalıştırılır
+if not is_file_downloaded_today(filename):
+    # ChromeDriver'ı en son sürümüyle otomatik olarak indirip kullan
+    driver = webdriver.Chrome(service=Service(ChromeDriverManager().install()))
+
+    login_url = "https://task.haydigiy.com/kullanici-giris/?ReturnUrl=%2Fadmin"
+    driver.get(login_url)
+
+    # Giriş bilgilerini doldurma
+    email_input = driver.find_element("id", "EmailOrPhone")
+    email_input.send_keys("mustafa_kod@haydigiy.com")
+
+    password_input = driver.find_element("id", "Password")
+    password_input.send_keys("123456")
+    password_input.send_keys(Keys.RETURN)
+
+    # Belirttiğiniz sayfaya yönlendirme
+    desired_page_url = "https://task.haydigiy.com/admin/exportorder/edit/154/"
+    driver.get(desired_page_url)
+
+    # Dünün tarihini al
+    yesterday = datetime.now() - timedelta(days=1)
+    formatted_date = yesterday.strftime("%d.%m.%Y")
+
+    # EndDate alanını bulma ve tarih girişini yapma
+    end_date_input = driver.find_element("id", "EndDate")
+    end_date_input.clear()  # Eğer mevcut bir değer varsa temizleyin
+    end_date_input.send_keys(formatted_date)
+
+    # StartDate alanını bulma ve tarih girişini yapma
+    start_date_input = driver.find_element("id", "StartDate")
+    start_date_input.clear()  # Eğer mevcut bir değer varsa temizleyin
+    start_date_input.send_keys(formatted_date)
+
+    # Kaydet butonunu bulma ve tıklama
+    save_button = driver.find_element("css selector", 'button.btn.btn-primary[name="save"]')
+    save_button.click()
+
+    # Selenium işlemleri tamamlandıktan sonra tarayıcıyı kapatın
+    driver.quit()
+
+#endregion
+
+#region Satış Raporunu İndirme
+
+# Excel dosyasının indirileceği URL
+url = "https://task.haydigiy.com/FaprikaOrderXls/GZPCKE/1/"
+filename = "Satış Raporu.xlsx"
+
+# Dosyanın indirilme tarihini kontrol etmek için fonksiyon
+def is_file_downloaded_today(file_path):
+    if os.path.exists(file_path):
+        # Dosyanın son değiştirilme tarihini al
+        file_modification_time = os.path.getmtime(file_path)
+        modification_date = datetime.fromtimestamp(file_modification_time).date()
+        # Bugünün tarihi ile karşılaştır
+        return modification_date == datetime.today().date()
+    return False
+
+# Dosya bugün indirilmemişse veya yoksa yeniden indir
+if not is_file_downloaded_today(filename):
+    # Eğer dosya varsa sil
+    if os.path.exists(filename):
+        os.remove(filename)
+    # Dosyayı indir ve kaydet
+    response = requests.get(url)
+    with open(filename, "wb") as file:
+        file.write(response.content)
+
+# Excel dosyasını oku
+df = pd.read_excel(filename)
+
+# Tutulacak sütunlar
+columns_to_keep = ["UrunAdi", "Adet", "ToplamFiyat"]
+
+# Diğer sütunları silmek
+df = df[columns_to_keep]
+
+# Düzenlenmiş dosyayı aynı adla kaydet
+df.to_excel(filename, index=False)
+
+#endregion
+
+#region Adet Sütununu Sayıya Çevirme
+
+def clean_adet(data):
+    # "Adet" sütunundaki tüm verilerin virgül karakterinden sonrasını temizle
+    data['Adet'] = data['Adet'].astype(str).apply(lambda x: x.split(',')[0])
+
+if __name__ == "__main__":
+    # Mevcut Excel dosyasını oku
+    file_path = "Satış Raporu.xlsx"
+    combined_data = pd.read_excel(file_path, engine="openpyxl")
+
+    # "Adet" sütunundaki verilerin virgül karakterinden sonrasını temizle
+    clean_adet(combined_data)
+
+    # Güncellenmiş veriyi aynı dosyaya üstüne kaydet
+    combined_data.to_excel(file_path, index=False, engine='openpyxl')
+    
+   
+def convert_adet_to_numeric(data):
+    # "Adet" sütunundaki tüm verileri sayıya dönüştür
+    data['Adet'] = pd.to_numeric(data['Adet'], errors='coerce')  # 'coerce' ile hatalı değerleri NaN olarak işaretle
+
+if __name__ == "__main__":
+    # Mevcut Excel dosyasını oku
+    file_path = "Satış Raporu.xlsx"
+    combined_data = pd.read_excel(file_path, engine="openpyxl")
+
+    # "Adet" sütunundaki verileri sayıya dönüştür
+    convert_adet_to_numeric(combined_data)
+
+    # Güncellenmiş veriyi aynı dosyaya üstüne kaydet
+    combined_data.to_excel(file_path, index=False, engine='openpyxl')
+
+#endregion
+
+#region ToplamFiyat Sütununu Sayıya Çevirme
+
+def clean_adet(data):
+    # "Adet" sütunundaki tüm verilerin virgül karakterinden sonrasını temizle
+    data['ToplamFiyat'] = data['ToplamFiyat'].astype(str).apply(lambda x: x.split(',')[0])
+
+if __name__ == "__main__":
+    # Mevcut Excel dosyasını oku
+    file_path = "Satış Raporu.xlsx"
+    combined_data = pd.read_excel(file_path, engine="openpyxl")
+
+    # "Adet" sütunundaki verilerin virgül karakterinden sonrasını temizle
+    clean_adet(combined_data)
+
+    # Güncellenmiş veriyi aynı dosyaya üstüne kaydet
+    combined_data.to_excel(file_path, index=False, engine='openpyxl')
+    
+   
+def convert_adet_to_numeric(data):
+    # "Adet" sütunundaki tüm verileri sayıya dönüştür
+    data['ToplamFiyat'] = pd.to_numeric(data['ToplamFiyat'], errors='coerce')  # 'coerce' ile hatalı değerleri NaN olarak işaretle
+
+if __name__ == "__main__":
+    # Mevcut Excel dosyasını oku
+    file_path = "Satış Raporu.xlsx"
+    combined_data = pd.read_excel(file_path, engine="openpyxl")
+
+    # "Adet" sütunundaki verileri sayıya dönüştür
+    convert_adet_to_numeric(combined_data)
+
+    # Güncellenmiş veriyi aynı dosyaya üstüne kaydet
+    combined_data.to_excel(file_path, index=False, engine='openpyxl')
+
+#endregion
+
+#region Adet ve ToplamFiyat Sütununa ETOPLA yapma
+
+# Excel dosyasını tekrar okumak
+df = pd.read_excel("Satış Raporu.xlsx")
+
+# UrunAdi sütununa göre gruplandırma ve Adet ile ToplamFiyat sütunlarındaki verileri toplama
+df_grouped = df.groupby('UrunAdi', as_index=False).agg({
+    'Adet': 'sum',
+    'ToplamFiyat': 'sum'
+})
+
+# Düzenlenmiş dosyayı aynı adla kaydetmek
+df_grouped.to_excel("Satış Raporu.xlsx", index=False)
+
+#endregion
+
+#region Öne Çıkanlar Listesine Satış Adetleri Listesindeki Verileri Çektirme
+
+# Excel dosyalarını oku
+satis_raporu_df = pd.read_excel("Satış Raporu.xlsx")
+one_cikanlar_df = pd.read_excel("sonuc_excel.xlsx")
+
+# Öne Çıkanlar Excel'ine Satış Raporu'ndan Adet ve ToplamFiyat sütunlarını eklemek için merge işlemi yapalım
+merged_df = one_cikanlar_df.merge(
+    satis_raporu_df[['UrunAdi', 'Adet']],
+    on='UrunAdi',
+    how='left'
+)
+
+# Sütun adını değiştir
+merged_df.rename(columns={'Adet': 'Dünün Satış Adedi'}, inplace=True)
+
+# Birleştirilmiş veriyi Öne Çıkanlar Excel dosyasına kaydedelim
+merged_df.to_excel("sonuc_excel.xlsx", index=False)
+
+#endregion
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+df_calisma_alani = pd.read_excel("sonuc_excel.xlsx")
+
 
 # "Resim" sütunundaki ".jpeg" ifadesinden sonrasını temizleme
 df_calisma_alani["Resim"] = df_calisma_alani["Resim"].str.replace(r"\.jpeg.*$", "", regex=True)
@@ -567,7 +871,7 @@ df_calisma_alani["Resim"] = df_calisma_alani["Resim"] + ".jpeg"
 df_calisma_alani = df_calisma_alani.rename(columns={"StokAdedi": "İnstagram Stok Adedi"})
 
 # Sütun sıralamasını ayarlama
-column_order = ["UrunAdi", "İnstagram Stok Adedi", "Toplam Stok Adedi Her Şey Dahil", "Toplam Stok Adedi Site ve Diğer Depolar", "Günlük Satış Adedi", "Görüntülenme Adedi", "Görüntülenmenin Satışa Dönüş Oranı", "Kaç Güne Biter Her Şey Dahil", "Kaç Güne Biter Site ve Diğer Depolar", "AlisFiyati", "SatisFiyati", "AramaTerimleri", "Resim", "GMT Etopla", "SİTA Etopla"]
+column_order = ["UrunAdi", "İnstagram Stok Adedi", "Toplam Stok Adedi Her Şey Dahil", "Toplam Stok Adedi Site ve Diğer Depolar", "Günlük Satış Adedi", "Dünün Satış Adedi", "Görüntülenme Adedi", "Görüntülenmenin Satışa Dönüş Oranı", "Kaç Güne Biter Her Şey Dahil", "Kaç Güne Biter Site ve Diğer Depolar", "AlisFiyati", "SatisFiyati", "AramaTerimleri", "Resim", "GMT Etopla", "SİTA Etopla"]
 df_calisma_alani = df_calisma_alani[column_order]
 
 # Tekrarlanan satırları silme
@@ -618,16 +922,18 @@ with pd.ExcelWriter('sonuc_excel.xlsx', engine='xlsxwriter') as writer:
                 worksheet.write(j + 1, i, value, center_format)
 
     # "Resim" sütununun genişliğini 20 piksel olarak ayarla
-    worksheet.set_column('M:M', 20)
+    worksheet.set_column('N:N', 20)
 
 # Dosyanın adını değiştirme
 excel_file_name = "sonuc_excel.xlsx"
-new_excel_file_name = "Satış Raporu.xlsx"
+new_excel_file_name = "Nirvana.xlsx"
 os.rename(excel_file_name, new_excel_file_name)
 
 # Eski dosyaları silme
-dosyalar = ["GMT ve SİTA.xlsx"]
+dosyalar = ["GMT ve SİTA.xlsx", "Satış Raporu.xlsx"]
 
 for dosya in dosyalar:
     if os.path.exists(dosya):
         os.remove(dosya)
+
+
