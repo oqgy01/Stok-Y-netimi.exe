@@ -467,11 +467,47 @@ for link in links:
 merged_df = pd.concat(dfs, ignore_index=True)
 
 # Belirli başlıklar dışındaki sütunları silme
-selected_columns = ["UrunAdi", "StokAdedi", "AlisFiyati", "SatisFiyati", "Resim", "AramaTerimleri", "MorhipoKodu", "VaryasyonMorhipoKodu", "HepsiBuradaKodu"]
+selected_columns = ["UrunAdi", "StokAdedi", "AlisFiyati", "SatisFiyati", "Kategori", "Resim", "AramaTerimleri", "MorhipoKodu", "VaryasyonMorhipoKodu", "HepsiBuradaKodu"]
 filtered_df = merged_df[selected_columns]
 
 # Sonuç DataFrame'i tek bir Excel dosyasına yazma
 filtered_df.to_excel("sonuc_excel.xlsx", index=False)
+
+
+
+
+
+
+
+
+
+
+
+
+
+# Excel dosyasını okuma
+df = pd.read_excel("sonuc_excel.xlsx")
+
+# Kategori sütunundan istenilen kısmı ayıklama fonksiyonu
+def extract_category(text):
+    # Eğer "TESETTÜR" ifadesi varsa direkt olarak "TESETTÜR" yaz
+    if "TESETTÜR" in text:
+        return "TESETTÜR"
+    # Yoksa > ve ; karakterleri arasındaki ilk bölümü bulma
+    match = re.search(r'>\s*([^;]+)', text)
+    if match:
+        return match.group(1).strip()
+    return None
+
+# Yeni bir sütun oluşturup ayıklanan veriyi ekleme
+df['Kategori'] = df['Kategori'].apply(extract_category)
+
+# Yeni DataFrame'i bir Excel dosyasına kaydetme
+df.to_excel("sonuc_excel.xlsx", index=False)
+
+
+
+
 
 
 
@@ -983,7 +1019,7 @@ df_calisma_alani = df_calisma_alani.rename(columns={"StokAdedi": "İnstagram Sto
 column_order = ["UrunAdi", "İnstagram Stok Adedi", "Toplam Stok Adedi Her Şey Dahil", "Toplam Stok Adedi Site ve Diğer Depolar", 
                 "Günlük Satış Adedi", "Dünün Satış Adedi", "Görüntülenme Adedi", "Görüntülenmenin Satışa Dönüş Oranı", 
                 "Kaç Güne Biter Her Şey Dahil", "Kaç Güne Biter Site ve Diğer Depolar", "AlisFiyati", "SatisFiyati", 
-                "AramaTerimleri", "Resim", "GMT Etopla", "SİTA Etopla"]
+                "AramaTerimleri", "Resim", "Kategori", "GMT Etopla", "SİTA Etopla"]
 df_calisma_alani = df_calisma_alani[column_order]
 
 # Tekrarlanan satırları silme
@@ -1100,9 +1136,14 @@ excel_file_name = "sonuc_excel.xlsx"
 new_excel_file_name = "Nirvana.xlsx"
 os.rename(excel_file_name, new_excel_file_name)
 
+
+
 # Eski dosyaları silme
 dosyalar = ["GMT ve SİTA.xlsx", "Satış Raporu.xlsx"]
 
 for dosya in dosyalar:
     if os.path.exists(dosya):
         os.remove(dosya)
+
+
+
