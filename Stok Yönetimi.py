@@ -386,7 +386,7 @@ elif secim == "7":
             os.remove(dosya1)
             os.remove(dosya2)
         except FileNotFoundError:
-            print("Dosyalar zaten silinmiş veya bulunamadı.")
+            pass
         except Exception as e:
             print(f"Hata oluştu: {e}")
 
@@ -476,16 +476,99 @@ filtered_df.to_excel("sonuc_excel.xlsx", index=False)
 
 
 
+
+
+
+
+
+
+
+
+
+
+# sonuc_excel.xlsx dosyasını oku
+sonuc_excel_file = "sonuc_excel.xlsx"
+sonuc_df = pd.read_excel(sonuc_excel_file)
+
+# Ürün kodunu ayıklamak için güncellenmiş bir fonksiyon tanımla
+def extract_product_code(urun_adi):
+    match = re.search(r' - (\d+)\.', urun_adi)  # " - " ve "." arasındaki sayıyı ayıkla
+    return match.group(1) if match else None
+
+# Yeni sütun oluştur ve her satır için ürün kodunu çek
+sonuc_df['UrunAdi Duzenleme'] = sonuc_df['UrunAdi'].apply(extract_product_code)
+
+# "UrunAdi Duzenleme" sütununu metin formatına çevir
+sonuc_df['UrunAdi Duzenleme'] = sonuc_df['UrunAdi Duzenleme'].astype(str)
+
+# Güncellenmiş DataFrame'i aynı Excel dosyasına kaydet
+updated_excel_file = "sonuc_excel.xlsx"
+sonuc_df.to_excel(updated_excel_file, index=False)
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
 # Google Sheet URL
 google_sheet_url = "https://docs.google.com/spreadsheets/d/1aA5LhkQYgtwHLcKRV1mKl9Lb6VeOgUNIC9zy2kRagrs/gviz/tq?tqx=out:csv"
 
 # Google Sheet'ten veriyi al ve Excel dosyasına kaydet
 try:
     google_df = pd.read_csv(google_sheet_url)
+    
+    # "GMT Ürün Kodu" ve "SİTA Ürün Kodu" sütunlarındaki " - " ifadesinden sonrasını temizle
+    google_df["GMT Ürün Kodu"] = google_df["GMT Ürün Kodu"].str.split(" - ").str[0]
+    google_df["SİTA Ürün Kodu"] = google_df["SİTA Ürün Kodu"].str.split(" - ").str[0]
+    
+    # Sayıya çevirme işlemi ve hataları geçme
+    google_df["GMT Ürün Kodu"] = pd.to_numeric(google_df["GMT Ürün Kodu"], errors='coerce')
+    google_df["SİTA Ürün Kodu"] = pd.to_numeric(google_df["SİTA Ürün Kodu"], errors='coerce')
+
+    # Hata nedeniyle NaN olan değerleri orijinal metin haline geri çevir
+    google_df["GMT Ürün Kodu"] = google_df["GMT Ürün Kodu"].fillna(google_df["GMT Ürün Kodu"].astype(str))
+    google_df["SİTA Ürün Kodu"] = google_df["SİTA Ürün Kodu"].fillna(google_df["SİTA Ürün Kodu"].astype(str))
+    
+    # Güncellenmiş DataFrame'i Excel dosyasına kaydet
     google_excel_file = "GMT ve SİTA.xlsx"
     google_df.to_excel(google_excel_file, index=False)
+    
+
+    
 except requests.exceptions.RequestException as e:
     print(f"Request failed: {e}")
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
 
 # sonuc_excel dosyasını oku
 sonuc_excel_file = "sonuc_excel.xlsx"
@@ -494,18 +577,18 @@ sonuc_df = pd.read_excel(sonuc_excel_file)
 # GMT ve SİTA dosyasını oku
 gmt_sita_df = pd.read_excel("GMT ve SİTA.xlsx")
 
-# 'UrunAdi' sütunundaki her değeri işle
+# İlk adım: 'UrunAdi' sütunuyla eşleşme ve GMT/SİTA Etopla değerlerini al
 def match_and_update(row):
     urun_adi = row['UrunAdi']
     
-    # GMT ve SİTA dosyasında 'GMT Ürün Adı' sütununda arama yap ve 'GMT Etopla' değerini al
+    # GMT Ürün Adı sütununda arama yap ve 'GMT Etopla' değerini al
     gmt_row = gmt_sita_df[gmt_sita_df['GMT Ürün Adı'] == urun_adi]
     if not gmt_row.empty:
         row['GMT Etopla'] = gmt_row['GMT Etopla'].values[0]
     else:
         row['GMT Etopla'] = None
 
-    # GMT ve SİTA dosyasında 'İSTA Ürün Adı' sütununda arama yap ve 'SİTA Etopla' değerini al
+    # SİTA Ürün Adı sütununda arama yap ve 'SİTA Etopla' değerini al
     sista_row = gmt_sita_df[gmt_sita_df['SİTA Ürün Adı'] == urun_adi]
     if not sista_row.empty:
         row['SİTA Etopla'] = sista_row['SİTA Etopla'].values[0]
@@ -514,8 +597,31 @@ def match_and_update(row):
 
     return row
 
-# 'UrunAdi' sütununu kullanarak işlemi gerçekleştirin
+# İlk adımı uygulayın
 sonuc_df = sonuc_df.apply(match_and_update, axis=1)
+
+# İkinci adım: 'UrunAdi Duzenleme' sütununa göre arama, sadece GMT Etopla veya SİTA Etopla boş ya da sıfırsa
+def match_and_update_with_code(row):
+    urun_kodu = row['UrunAdi Duzenleme']
+    
+    # Eğer GMT Etopla boş ya da sıfırsa, 'GMT Ürün Kodu' ile arama yap
+    if pd.isna(row['GMT Etopla']) or row['GMT Etopla'] == 0:
+        gmt_code_row = gmt_sita_df[gmt_sita_df['GMT Ürün Kodu'] == urun_kodu]
+        if not gmt_code_row.empty:
+            gmt_etopla = gmt_code_row['GMT Etopla'].values[0]
+            row['GMT Etopla'] = "GMT'de Var" if gmt_etopla > 0 else gmt_etopla
+    
+    # Eğer SİTA Etopla boş ya da sıfırsa, 'SİTA Ürün Kodu' ile arama yap
+    if pd.isna(row['SİTA Etopla']) or row['SİTA Etopla'] == 0:
+        sista_code_row = gmt_sita_df[gmt_sita_df['SİTA Ürün Kodu'] == urun_kodu]
+        if not sista_code_row.empty:
+            sita_etopla = sista_code_row['SİTA Etopla'].values[0]
+            row['SİTA Etopla'] = "SİTA'da Var" if sita_etopla > 0 else sita_etopla
+
+    return row
+
+# İkinci adımı uygulayın
+sonuc_df = sonuc_df.apply(match_and_update_with_code, axis=1)
 
 # Güncellenmiş DataFrame'i yeni bir Excel dosyasına kaydedin
 updated_excel_file = "sonuc_excel.xlsx"
@@ -540,23 +646,26 @@ df_calisma_alani.loc[:, "StokAdedi"] = df_calisma_alani.groupby("UrunAdi")["Stok
 # "VaryasyonMorhipoKodu" sütununun adını değiştirme
 df_calisma_alani = df_calisma_alani.rename(columns={"VaryasyonMorhipoKodu": "N11 & Zimmet"})
 
-# Veri tiplerini uyumlu hale getirme
-df_calisma_alani["StokAdedi"] = pd.to_numeric(df_calisma_alani["StokAdedi"], errors="coerce")
-df_calisma_alani["N11 & Zimmet"] = pd.to_numeric(df_calisma_alani["N11 & Zimmet"], errors="coerce")
-df_calisma_alani["GMT Etopla"] = pd.to_numeric(df_calisma_alani["GMT Etopla"], errors="coerce")
-df_calisma_alani["SİTA Etopla"] = pd.to_numeric(df_calisma_alani["SİTA Etopla"], errors="coerce")
+# Hesaplamalarda metinsel verileri sıfır olarak ele almak için sayısal değerlere dönüştürme
+# Orijinal veri bozulmadan yalnızca matematiksel işlemler için geçici sütunlar kullanılıyor
+gmt_numeric = pd.to_numeric(df_calisma_alani["GMT Etopla"], errors="coerce").fillna(0)
+sita_numeric = pd.to_numeric(df_calisma_alani["SİTA Etopla"], errors="coerce").fillna(0)
+stok_adedi_numeric = pd.to_numeric(df_calisma_alani["StokAdedi"], errors="coerce").fillna(0)
+n11_zimmet_numeric = pd.to_numeric(df_calisma_alani["N11 & Zimmet"], errors="coerce").fillna(0)
 
-# Eksik değerleri sıfır ile doldurma
+# "Toplam Stok Adedi" sütunlarını oluşturma
+df_calisma_alani["Toplam Stok Adedi Her Şey Dahil"] = stok_adedi_numeric + n11_zimmet_numeric + gmt_numeric + sita_numeric
+df_calisma_alani["Toplam Stok Adedi Site ve Diğer Depolar"] = stok_adedi_numeric + n11_zimmet_numeric
+
+# Eksik değerleri sıfır ile doldurma (diğer sütunlar için)
 df_calisma_alani['StokAdedi'].fillna(0, inplace=True)
 df_calisma_alani['N11 & Zimmet'].fillna(0, inplace=True)
 df_calisma_alani['GMT Etopla'].fillna(0, inplace=True)
 df_calisma_alani['SİTA Etopla'].fillna(0, inplace=True)
 
-# "Toplam Stok Adedi" sütununu oluştur
-df_calisma_alani["Toplam Stok Adedi Her Şey Dahil"] = df_calisma_alani["StokAdedi"] + df_calisma_alani["N11 & Zimmet"] + df_calisma_alani["GMT Etopla"] + df_calisma_alani["SİTA Etopla"]
-
-# "Toplam Stok Adedi" sütununu oluştur
-df_calisma_alani["Toplam Stok Adedi Site ve Diğer Depolar"] = df_calisma_alani["StokAdedi"] + df_calisma_alani["N11 & Zimmet"]
+# Güncellenmiş DataFrame'i yeni bir Excel dosyasına kaydet
+updated_excel_file = "sonuc_excel.xlsx"
+df_calisma_alani.to_excel(updated_excel_file, index=False)
 
 
 
@@ -858,20 +967,23 @@ merged_df.to_excel("sonuc_excel.xlsx", index=False)
 
 
 
+# Excel dosyasını oku
 df_calisma_alani = pd.read_excel("sonuc_excel.xlsx")
 
+# "Resim" sütunundaki ".jpeg" ifadesinden sonrasını temizleme ve ".jpeg" ekleme
+df_calisma_alani["Resim"] = df_calisma_alani["Resim"].str.replace(r"\.jpeg.*$", "", regex=True) + ".jpeg"
 
-# "Resim" sütunundaki ".jpeg" ifadesinden sonrasını temizleme
-df_calisma_alani["Resim"] = df_calisma_alani["Resim"].str.replace(r"\.jpeg.*$", "", regex=True)
-
-# Kalan verilere ".jpeg" eklenmesi
-df_calisma_alani["Resim"] = df_calisma_alani["Resim"] + ".jpeg"
+# Resim bağlantılarını bir listeye kaydet
+links = df_calisma_alani["Resim"].tolist()
 
 # "StokAdedi" sütununun adını değiştirme
 df_calisma_alani = df_calisma_alani.rename(columns={"StokAdedi": "İnstagram Stok Adedi"})
 
 # Sütun sıralamasını ayarlama
-column_order = ["UrunAdi", "İnstagram Stok Adedi", "Toplam Stok Adedi Her Şey Dahil", "Toplam Stok Adedi Site ve Diğer Depolar", "Günlük Satış Adedi", "Dünün Satış Adedi", "Görüntülenme Adedi", "Görüntülenmenin Satışa Dönüş Oranı", "Kaç Güne Biter Her Şey Dahil", "Kaç Güne Biter Site ve Diğer Depolar", "AlisFiyati", "SatisFiyati", "AramaTerimleri", "Resim", "GMT Etopla", "SİTA Etopla"]
+column_order = ["UrunAdi", "İnstagram Stok Adedi", "Toplam Stok Adedi Her Şey Dahil", "Toplam Stok Adedi Site ve Diğer Depolar", 
+                "Günlük Satış Adedi", "Dünün Satış Adedi", "Görüntülenme Adedi", "Görüntülenmenin Satışa Dönüş Oranı", 
+                "Kaç Güne Biter Her Şey Dahil", "Kaç Güne Biter Site ve Diğer Depolar", "AlisFiyati", "SatisFiyati", 
+                "AramaTerimleri", "Resim", "GMT Etopla", "SİTA Etopla"]
 df_calisma_alani = df_calisma_alani[column_order]
 
 # Tekrarlanan satırları silme
@@ -883,46 +995,105 @@ df_calisma_alani = df_calisma_alani.fillna(0)
 # inf değerlerini 0 ile değiştirme
 df_calisma_alani.replace([float('inf'), float('-inf')], 0, inplace=True)
 
-# Sonuç DataFrame'ini tekrar "sonuc_excel.xlsx" adlı bir Excel dosyasına yazma
-df_calisma_alani.to_excel("sonuc_excel.xlsx", index=False)
-
-# Tarihleri çıkarmak için regex deseni
-date_pattern = r'(\d{1,2}\.\d{1,2}\.\d{4})'
-
 # "AramaTerimleri" sütunundaki tarihleri temizle
+date_pattern = r'(\d{1,2}\.\d{1,2}\.\d{4})'
 df_calisma_alani['AramaTerimleri'] = df_calisma_alani['AramaTerimleri'].apply(lambda x: re.search(date_pattern, str(x)).group(1) if re.search(date_pattern, str(x)) else None)
 
-# Güncellenmiş DataFrame'i aynı Excel dosyasının üzerine yaz
+# "Resim" sütununu DataFrame'den kaldır
+df_calisma_alani.drop(columns=["Resim"], inplace=True)
+
+
+
+
+
+
+
+
+# Güncellenmiş DataFrame'i aynı Excel dosyasına yaz
 with pd.ExcelWriter('sonuc_excel.xlsx', engine='xlsxwriter') as writer:
     df_calisma_alani.to_excel(writer, index=False, sheet_name='Sheet1')
 
     # ExcelWriter objesinden workbook ve worksheet'e eriş
-    workbook  = writer.book
+    workbook = writer.book
     worksheet = writer.sheets['Sheet1']
 
-    # DataFrame sütun genişliklerini al
-    column_widths = [max(df_calisma_alani[col].astype(str).apply(len).max(), len(col)) + 2 for col in df_calisma_alani.columns]
+    # İlk sütun (UrunAdi) için uygun genişlik ayarlama
+    max_col_width = max(df_calisma_alani["UrunAdi"].astype(str).apply(len).max(), len("UrunAdi")) + 2
+    worksheet.set_column(0, 0, max_col_width)
 
-    # Sütun genişliklerini Excel worksheet'e ayarla
-    for i, width in enumerate(column_widths):
-        worksheet.set_column(i, i, width)
+    # Belirli sütunlar için genişliği 10 piksel olarak ayarlama
+    narrow_columns = ["AlisFiyati", "SatisFiyati", "GMT Etopla", "SİTA Etopla"]
+    for col_name in narrow_columns:
+        col_idx = df_calisma_alani.columns.get_loc(col_name)
+        worksheet.set_column(col_idx, col_idx, 10)
 
-    # Tabloyu ortala
-    center_format = workbook.add_format({'align': 'center', 'valign': 'vcenter'})
-    header_format = workbook.add_format({'bold': True, 'bg_color': '#D3D3D3', 'align': 'center', 'valign': 'vcenter'})
+    # Diğer tüm sütunların genişliğini 15 piksel olarak ayarla
+    for i in range(1, len(df_calisma_alani.columns)):
+        if df_calisma_alani.columns[i] not in narrow_columns:
+            worksheet.set_column(i, i, 15)
 
+    # Başlık satırının yüksekliğini 50 piksel olarak ayarla
+    worksheet.set_row(0, 50)
+
+    # Başlık satırını dondur
+    worksheet.freeze_panes(1, 0)
+
+    # Başlık için hücre biçimlendirme ayarlarını yap
+    header_format = workbook.add_format({
+        'bold': True,
+        'bg_color': '#D3D3D3',
+        'align': 'center',
+        'valign': 'vcenter',
+        'text_wrap': True,
+        'border': 1
+    })
+
+    # Para birimi formatı tanımlama (orta hizalı)
+    currency_format = workbook.add_format({'num_format': '#,##0.00₺', 'align': 'center', 'valign': 'vcenter'})
+    shaded_currency_format = workbook.add_format({'bg_color': '#D9D9D9', 'num_format': '#,##0.00₺', 'align': 'center', 'valign': 'vcenter'})
+
+    # Var içeren hücreler için özel renklendirme
+    var_format = workbook.add_format({'bg_color': '#ffb994'})
+
+    # Başlık hücrelerini yaz ve biçimlendir
     for col_num, value in enumerate(df_calisma_alani.columns.values):
         worksheet.write(0, col_num, value, header_format)
 
-    for i, col in enumerate(df_calisma_alani.columns):
-        for j, value in enumerate(df_calisma_alani[col]):
-            if col == 'Resim':
-                worksheet.write_url(j + 1, i, value, string='Tıkla', cell_format=center_format)
-            else:
-                worksheet.write(j + 1, i, value, center_format)
+    # Veriler için hücre biçimlendirme ayarlarını yap
+    center_format = workbook.add_format({'align': 'center', 'valign': 'vcenter'})
+    left_align_format = workbook.add_format({'align': 'left', 'valign': 'vcenter'})
+    shaded_format = workbook.add_format({'bg_color': '#D9D9D9', 'align': 'center', 'valign': 'vcenter'})
+    shaded_left_align_format = workbook.add_format({'bg_color': '#D9D9D9', 'align': 'left', 'valign': 'vcenter'})
 
-    # "Resim" sütununun genişliğini 20 piksel olarak ayarla
-    worksheet.set_column('N:N', 20)
+    # Satırları ve sütunları dolaşarak biçimlendirme
+    for row_num, row in enumerate(df_calisma_alani.itertuples(), start=1):
+        for col_num, value in enumerate(row[1:]):  # row[0] index olduğu için atlanıyor
+            col_name = df_calisma_alani.columns[col_num]
+            if col_num == 0:  # UrunAdi sütunu
+                link = links[row_num - 1]  # Resim sütunundaki bağlantıyı UrunAdi'ye ekliyoruz
+                if row_num % 2 == 1:
+                    worksheet.write_url(row_num, col_num, link, string=value, cell_format=shaded_left_align_format)
+                else:
+                    worksheet.write_url(row_num, col_num, link, string=value, cell_format=left_align_format)
+            elif col_name in ["AlisFiyati", "SatisFiyati"]:
+                # Para birimi formatı uygulama, alternatif satır renklendirme ile ve orta hizalı
+                if row_num % 2 == 1:
+                    worksheet.write(row_num, col_num, value, shaded_currency_format)
+                else:
+                    worksheet.write(row_num, col_num, value, currency_format)
+            elif col_name in ["GMT Etopla", "SİTA Etopla"] and "Var" in str(value):
+                worksheet.write(row_num, col_num, value, var_format)
+            else:
+                if row_num % 2 == 1:
+                    worksheet.write(row_num, col_num, value, shaded_format)
+                else:
+                    worksheet.write(row_num, col_num, value, center_format)
+
+    # Başlıklara filtre ekleme
+    worksheet.autofilter(0, 0, 0, len(df_calisma_alani.columns) - 1)
+
+    # Sayfanın yakınlaştırma oranını %90 olarak ayarla
+    worksheet.set_zoom(90)
 
 # Dosyanın adını değiştirme
 excel_file_name = "sonuc_excel.xlsx"
@@ -935,5 +1106,3 @@ dosyalar = ["GMT ve SİTA.xlsx", "Satış Raporu.xlsx"]
 for dosya in dosyalar:
     if os.path.exists(dosya):
         os.remove(dosya)
-
-
