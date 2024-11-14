@@ -38,7 +38,6 @@ from tqdm import tqdm
 import warnings
 from selenium.webdriver.chrome.service import Service
 from colorama import init, Fore, Style
-
 import pandas as pd
 from selenium import webdriver
 from selenium.webdriver.common.keys import Keys
@@ -73,6 +72,7 @@ import http.client
 import json
 import gc
 from concurrent.futures import ThreadPoolExecutor, as_completed
+from openpyxl.comments import Comment
 warnings.filterwarnings("ignore")
 pd.options.mode.chained_assignment = None
 init(autoreset=True)
@@ -490,13 +490,13 @@ df = pd.read_excel("sonuc_excel.xlsx")
 
 # Kategori sütunundan istenilen kısmı ayıklama fonksiyonu
 def extract_category(text):
-    # Eğer "TESETTÜR" ifadesi varsa direkt olarak "TESETTÜR" yaz
-    if "TESETTÜR" in text:
-        return "TESETTÜR"
-    # Yoksa > ve ; karakterleri arasındaki ilk bölümü bulma
+    # > ve ; karakterleri arasındaki ilk bölümü bulma
     match = re.search(r'>\s*([^;]+)', text)
     if match:
         return match.group(1).strip()
+    # Eğer match bulunmazsa "TESETTÜR" ifadesi olup olmadığını kontrol et
+    elif "TESETTÜR" in text:
+        return "TESETTÜR"
     return None
 
 # Yeni bir sütun oluşturup ayıklanan veriyi ekleme
@@ -613,46 +613,46 @@ sonuc_df = pd.read_excel(sonuc_excel_file)
 # GMT ve SİTA dosyasını oku
 gmt_sita_df = pd.read_excel("GMT ve SİTA.xlsx")
 
-# İlk adım: 'UrunAdi' sütunuyla eşleşme ve GMT/SİTA Etopla değerlerini al
+# İlk adım: 'UrunAdi' sütunuyla eşleşme ve GMT/SİTA Stok Adedi değerlerini al
 def match_and_update(row):
     urun_adi = row['UrunAdi']
     
-    # GMT Ürün Adı sütununda arama yap ve 'GMT Etopla' değerini al
+    # GMT Ürün Adı sütununda arama yap ve 'GMT Stok Adedi' değerini al
     gmt_row = gmt_sita_df[gmt_sita_df['GMT Ürün Adı'] == urun_adi]
     if not gmt_row.empty:
-        row['GMT Etopla'] = gmt_row['GMT Etopla'].values[0]
+        row['GMT Stok Adedi'] = gmt_row['GMT Stok Adedi'].values[0]
     else:
-        row['GMT Etopla'] = None
+        row['GMT Stok Adedi'] = None
 
-    # SİTA Ürün Adı sütununda arama yap ve 'SİTA Etopla' değerini al
+    # SİTA Ürün Adı sütununda arama yap ve 'SİTA Stok Adedi' değerini al
     sista_row = gmt_sita_df[gmt_sita_df['SİTA Ürün Adı'] == urun_adi]
     if not sista_row.empty:
-        row['SİTA Etopla'] = sista_row['SİTA Etopla'].values[0]
+        row['SİTA Stok Adedi'] = sista_row['SİTA Stok Adedi'].values[0]
     else:
-        row['SİTA Etopla'] = None
+        row['SİTA Stok Adedi'] = None
 
     return row
 
 # İlk adımı uygulayın
 sonuc_df = sonuc_df.apply(match_and_update, axis=1)
 
-# İkinci adım: 'UrunAdi Duzenleme' sütununa göre arama, sadece GMT Etopla veya SİTA Etopla boş ya da sıfırsa
+# İkinci adım: 'UrunAdi Duzenleme' sütununa göre arama, sadece GMT Stok Adedi veya SİTA Stok Adedi boş ya da sıfırsa
 def match_and_update_with_code(row):
     urun_kodu = row['UrunAdi Duzenleme']
     
-    # Eğer GMT Etopla boş ya da sıfırsa, 'GMT Ürün Kodu' ile arama yap
-    if pd.isna(row['GMT Etopla']) or row['GMT Etopla'] == 0:
+    # Eğer GMT Stok Adedi boş ya da sıfırsa, 'GMT Ürün Kodu' ile arama yap
+    if pd.isna(row['GMT Stok Adedi']) or row['GMT Stok Adedi'] == 0:
         gmt_code_row = gmt_sita_df[gmt_sita_df['GMT Ürün Kodu'] == urun_kodu]
         if not gmt_code_row.empty:
-            gmt_etopla = gmt_code_row['GMT Etopla'].values[0]
-            row['GMT Etopla'] = "GMT'de Var" if gmt_etopla > 0 else gmt_etopla
+            gmt_etopla = gmt_code_row['GMT Stok Adedi'].values[0]
+            row['GMT Stok Adedi'] = "GMT'de Var" if gmt_etopla > 0 else gmt_etopla
     
-    # Eğer SİTA Etopla boş ya da sıfırsa, 'SİTA Ürün Kodu' ile arama yap
-    if pd.isna(row['SİTA Etopla']) or row['SİTA Etopla'] == 0:
+    # Eğer SİTA Stok Adedi boş ya da sıfırsa, 'SİTA Ürün Kodu' ile arama yap
+    if pd.isna(row['SİTA Stok Adedi']) or row['SİTA Stok Adedi'] == 0:
         sista_code_row = gmt_sita_df[gmt_sita_df['SİTA Ürün Kodu'] == urun_kodu]
         if not sista_code_row.empty:
-            sita_etopla = sista_code_row['SİTA Etopla'].values[0]
-            row['SİTA Etopla'] = "SİTA'da Var" if sita_etopla > 0 else sita_etopla
+            sita_etopla = sista_code_row['SİTA Stok Adedi'].values[0]
+            row['SİTA Stok Adedi'] = "SİTA'da Var" if sita_etopla > 0 else sita_etopla
 
     return row
 
@@ -684,20 +684,20 @@ df_calisma_alani = df_calisma_alani.rename(columns={"VaryasyonMorhipoKodu": "N11
 
 # Hesaplamalarda metinsel verileri sıfır olarak ele almak için sayısal değerlere dönüştürme
 # Orijinal veri bozulmadan yalnızca matematiksel işlemler için geçici sütunlar kullanılıyor
-gmt_numeric = pd.to_numeric(df_calisma_alani["GMT Etopla"], errors="coerce").fillna(0)
-sita_numeric = pd.to_numeric(df_calisma_alani["SİTA Etopla"], errors="coerce").fillna(0)
+gmt_numeric = pd.to_numeric(df_calisma_alani["GMT Stok Adedi"], errors="coerce").fillna(0)
+sita_numeric = pd.to_numeric(df_calisma_alani["SİTA Stok Adedi"], errors="coerce").fillna(0)
 stok_adedi_numeric = pd.to_numeric(df_calisma_alani["StokAdedi"], errors="coerce").fillna(0)
 n11_zimmet_numeric = pd.to_numeric(df_calisma_alani["N11 & Zimmet"], errors="coerce").fillna(0)
 
 # "Toplam Stok Adedi" sütunlarını oluşturma
-df_calisma_alani["Toplam Stok Adedi Her Şey Dahil"] = stok_adedi_numeric + n11_zimmet_numeric + gmt_numeric + sita_numeric
-df_calisma_alani["Toplam Stok Adedi Site ve Diğer Depolar"] = stok_adedi_numeric + n11_zimmet_numeric
+df_calisma_alani["Stok Adedi Her Şey Dahil"] = stok_adedi_numeric + n11_zimmet_numeric + gmt_numeric + sita_numeric
+df_calisma_alani["Stok Adedi Site ve Vega"] = stok_adedi_numeric + n11_zimmet_numeric
 
 # Eksik değerleri sıfır ile doldurma (diğer sütunlar için)
 df_calisma_alani['StokAdedi'].fillna(0, inplace=True)
 df_calisma_alani['N11 & Zimmet'].fillna(0, inplace=True)
-df_calisma_alani['GMT Etopla'].fillna(0, inplace=True)
-df_calisma_alani['SİTA Etopla'].fillna(0, inplace=True)
+df_calisma_alani['GMT Stok Adedi'].fillna(0, inplace=True)
+df_calisma_alani['SİTA Stok Adedi'].fillna(0, inplace=True)
 
 # Güncellenmiş DataFrame'i yeni bir Excel dosyasına kaydet
 updated_excel_file = "sonuc_excel.xlsx"
@@ -711,20 +711,20 @@ df_calisma_alani.to_excel(updated_excel_file, index=False)
 
 
 # "MorhipoKodu" sütununun adını değiştirme /Komplo orduların
-df_calisma_alani = df_calisma_alani.rename(columns={"MorhipoKodu": "Günlük Satış Adedi"})
-df_calisma_alani['Günlük Satış Adedi'].fillna(0, inplace=True)
+df_calisma_alani = df_calisma_alani.rename(columns={"MorhipoKodu": "Günlük Ortalama Satış Adedi"})
+df_calisma_alani['Günlük Ortalama Satış Adedi'].fillna(0, inplace=True)
 
-# "Kaç Güne Biter" sütununu oluşturma ve "Toplam Stok Adedi" sütunundaki verileri "Günlük Satış Adedi" sütunundaki verilere bölme işlemi
+# "Kaç Güne Biter" sütununu oluşturma ve "Toplam Stok Adedi" sütunundaki verileri "Günlük Ortalama Satış Adedi" sütunundaki verilere bölme işlemi
 df_calisma_alani["Kaç Güne Biter Her Şey Dahil"] = "Satış Adedi Yok"  # Varsayılan değer olarak "Satış Adedi Yok" atanır
-df_calisma_alani["Kaç Güne Biter Site ve Diğer Depolar"] = "Satış Adedi Yok"  # Varsayılan değer olarak "Satış Adedi Yok" atanır
+df_calisma_alani["Kaç Güne Biter Site ve Vega"] = "Satış Adedi Yok"  # Varsayılan değer olarak "Satış Adedi Yok" atanır
 
 
-non_zero_mask = df_calisma_alani["Günlük Satış Adedi"] != 0
-df_calisma_alani.loc[non_zero_mask, "Kaç Güne Biter Her Şey Dahil"] = round(df_calisma_alani["Toplam Stok Adedi Her Şey Dahil"] / df_calisma_alani["Günlük Satış Adedi"])
+non_zero_mask = df_calisma_alani["Günlük Ortalama Satış Adedi"] != 0
+df_calisma_alani.loc[non_zero_mask, "Kaç Güne Biter Her Şey Dahil"] = round(df_calisma_alani["Stok Adedi Her Şey Dahil"] / df_calisma_alani["Günlük Ortalama Satış Adedi"])
 
 
-non_zero_mask = df_calisma_alani["Günlük Satış Adedi"] != 0
-df_calisma_alani.loc[non_zero_mask, "Kaç Güne Biter Site ve Diğer Depolar"] = round(df_calisma_alani["Toplam Stok Adedi Site ve Diğer Depolar"] / df_calisma_alani["Günlük Satış Adedi"])
+non_zero_mask = df_calisma_alani["Günlük Ortalama Satış Adedi"] != 0
+df_calisma_alani.loc[non_zero_mask, "Kaç Güne Biter Site ve Vega"] = round(df_calisma_alani["Stok Adedi Site ve Vega"] / df_calisma_alani["Günlük Ortalama Satış Adedi"])
 
 
 
@@ -739,10 +739,10 @@ df_calisma_alani.loc[non_zero_mask, "Kaç Güne Biter Site ve Diğer Depolar"] =
 
 # "Görüntülenmenin Satışa Dönüş Oranı" sütunu
 df_calisma_alani["Görüntülenmenin Satışa Dönüş Oranı"] = "0"  # Varsayılan değer olarak "Satış Yok" atanır
-df_calisma_alani = df_calisma_alani.rename(columns={"HepsiBuradaKodu": "Görüntülenme Adedi"})
-df_calisma_alani['Görüntülenme Adedi'].fillna(0, inplace=True)
-non_zero_mask = df_calisma_alani["Görüntülenme Adedi"] != 0
-df_calisma_alani.loc[non_zero_mask, "Görüntülenmenin Satışa Dönüş Oranı"] = round((df_calisma_alani["Günlük Satış Adedi"] / df_calisma_alani["Görüntülenme Adedi"]) * 100, 2)
+df_calisma_alani = df_calisma_alani.rename(columns={"HepsiBuradaKodu": "Ortalama Görüntülenme Adedi"})
+df_calisma_alani['Ortalama Görüntülenme Adedi'].fillna(0, inplace=True)
+non_zero_mask = df_calisma_alani["Ortalama Görüntülenme Adedi"] != 0
+df_calisma_alani.loc[non_zero_mask, "Görüntülenmenin Satışa Dönüş Oranı"] = round((df_calisma_alani["Günlük Ortalama Satış Adedi"] / df_calisma_alani["Ortalama Görüntülenme Adedi"]) * 100, 2)
 
 
 
@@ -1006,24 +1006,26 @@ merged_df.to_excel("sonuc_excel.xlsx", index=False)
 # Excel dosyasını oku
 df_calisma_alani = pd.read_excel("sonuc_excel.xlsx")
 
+# "StokAdedi" sütununun adını değiştirme
+df_calisma_alani = df_calisma_alani.rename(columns={"StokAdedi": "İnstagram Stok Adedi"})
+
+# Sütun sıralamasını ayarlama
+column_order = ["UrunAdi", "İnstagram Stok Adedi", "Stok Adedi Her Şey Dahil", "Stok Adedi Site ve Vega", 
+                "Günlük Ortalama Satış Adedi", "Dünün Satış Adedi", "Ortalama Görüntülenme Adedi", "Görüntülenmenin Satışa Dönüş Oranı", 
+                "Kaç Güne Biter Her Şey Dahil", "Kaç Güne Biter Site ve Vega", "AlisFiyati", "SatisFiyati", 
+                "AramaTerimleri", "Resim", "Kategori", "GMT Stok Adedi", "SİTA Stok Adedi"]
+df_calisma_alani = df_calisma_alani[column_order]
+
+# Tekrarlanan satırları silme
+df_calisma_alani = df_calisma_alani.drop_duplicates(subset=["UrunAdi"])
+
+
 # "Resim" sütunundaki ".jpeg" ifadesinden sonrasını temizleme ve ".jpeg" ekleme
 df_calisma_alani["Resim"] = df_calisma_alani["Resim"].str.replace(r"\.jpeg.*$", "", regex=True) + ".jpeg"
 
 # Resim bağlantılarını bir listeye kaydet
 links = df_calisma_alani["Resim"].tolist()
 
-# "StokAdedi" sütununun adını değiştirme
-df_calisma_alani = df_calisma_alani.rename(columns={"StokAdedi": "İnstagram Stok Adedi"})
-
-# Sütun sıralamasını ayarlama
-column_order = ["UrunAdi", "İnstagram Stok Adedi", "Toplam Stok Adedi Her Şey Dahil", "Toplam Stok Adedi Site ve Diğer Depolar", 
-                "Günlük Satış Adedi", "Dünün Satış Adedi", "Görüntülenme Adedi", "Görüntülenmenin Satışa Dönüş Oranı", 
-                "Kaç Güne Biter Her Şey Dahil", "Kaç Güne Biter Site ve Diğer Depolar", "AlisFiyati", "SatisFiyati", 
-                "AramaTerimleri", "Resim", "Kategori", "GMT Etopla", "SİTA Etopla"]
-df_calisma_alani = df_calisma_alani[column_order]
-
-# Tekrarlanan satırları silme
-df_calisma_alani = df_calisma_alani.drop_duplicates(subset=["UrunAdi"])
 
 # NaN değerlerini 0 ile değiştirme
 df_calisma_alani = df_calisma_alani.fillna(0)
@@ -1035,9 +1037,14 @@ df_calisma_alani.replace([float('inf'), float('-inf')], 0, inplace=True)
 date_pattern = r'(\d{1,2}\.\d{1,2}\.\d{4})'
 df_calisma_alani['AramaTerimleri'] = df_calisma_alani['AramaTerimleri'].apply(lambda x: re.search(date_pattern, str(x)).group(1) if re.search(date_pattern, str(x)) else None)
 
+# "AramaTerimleri" sütununun adını "Resim Yüklenme Tarihi" olarak değiştirme
+df_calisma_alani.rename(columns={"AramaTerimleri": "Resim Yüklenme Tarihi"}, inplace=True)
+df_calisma_alani.rename(columns={"AlisFiyati": "Alış Fiyatı"}, inplace=True)
+df_calisma_alani.rename(columns={"SatisFiyati": "Satış Fiyatı"}, inplace=True)
+df_calisma_alani.rename(columns={"UrunAdi": "Ürün Adı"}, inplace=True)
+
 # "Resim" sütununu DataFrame'den kaldır
 df_calisma_alani.drop(columns=["Resim"], inplace=True)
-
 
 
 
@@ -1053,12 +1060,12 @@ with pd.ExcelWriter('sonuc_excel.xlsx', engine='xlsxwriter') as writer:
     workbook = writer.book
     worksheet = writer.sheets['Sheet1']
 
-    # İlk sütun (UrunAdi) için uygun genişlik ayarlama
-    max_col_width = max(df_calisma_alani["UrunAdi"].astype(str).apply(len).max(), len("UrunAdi")) + 2
+    # İlk sütun (Ürün Adı) için uygun genişlik ayarlama
+    max_col_width = max(df_calisma_alani["Ürün Adı"].astype(str).apply(len).max(), len("Ürün Adı")) + 2
     worksheet.set_column(0, 0, max_col_width)
 
     # Belirli sütunlar için genişliği 10 piksel olarak ayarlama
-    narrow_columns = ["AlisFiyati", "SatisFiyati", "GMT Etopla", "SİTA Etopla"]
+    narrow_columns = ["Alış Fiyatı", "Satış Fiyatı", "GMT Stok Adedi", "SİTA Stok Adedi"]
     for col_name in narrow_columns:
         col_idx = df_calisma_alani.columns.get_loc(col_name)
         worksheet.set_column(col_idx, col_idx, 10)
@@ -1105,19 +1112,19 @@ with pd.ExcelWriter('sonuc_excel.xlsx', engine='xlsxwriter') as writer:
     for row_num, row in enumerate(df_calisma_alani.itertuples(), start=1):
         for col_num, value in enumerate(row[1:]):  # row[0] index olduğu için atlanıyor
             col_name = df_calisma_alani.columns[col_num]
-            if col_num == 0:  # UrunAdi sütunu
-                link = links[row_num - 1]  # Resim sütunundaki bağlantıyı UrunAdi'ye ekliyoruz
+            if col_num == 0:  # Ürün Adı sütunu
+                link = links[row_num - 1]  # Resim sütunundaki bağlantıyı Ürün Adı'ye ekliyoruz
                 if row_num % 2 == 1:
                     worksheet.write_url(row_num, col_num, link, string=value, cell_format=shaded_left_align_format)
                 else:
                     worksheet.write_url(row_num, col_num, link, string=value, cell_format=left_align_format)
-            elif col_name in ["AlisFiyati", "SatisFiyati"]:
+            elif col_name in ["Alış Fiyatı", "Satış Fiyatı"]:
                 # Para birimi formatı uygulama, alternatif satır renklendirme ile ve orta hizalı
                 if row_num % 2 == 1:
                     worksheet.write(row_num, col_num, value, shaded_currency_format)
                 else:
                     worksheet.write(row_num, col_num, value, currency_format)
-            elif col_name in ["GMT Etopla", "SİTA Etopla"] and "Var" in str(value):
+            elif col_name in ["GMT Stok Adedi", "SİTA Stok Adedi"] and "Var" in str(value):
                 worksheet.write(row_num, col_num, value, var_format)
             else:
                 if row_num % 2 == 1:
@@ -1147,3 +1154,46 @@ for dosya in dosyalar:
 
 
 
+
+
+
+
+
+
+# Excel dosyasını yükle
+dosya_yolu = "Nirvana.xlsx"
+workbook = load_workbook(dosya_yolu)
+sheet = workbook.active
+
+# Sütun başlıkları ve açıklama metinleri
+columns_with_comments = {
+    "İnstagram Stok Adedi": "Ürünün sitedeki satışa açık stok adedini belirtir",
+    "Stok Adedi Her Şey Dahil": "Ürünün Instagram - STAD Depo - Zimmet Depo - GMT - SİTA kısımlarındaki toplam stok adedini belirtir",
+    "Stok Adedi Site ve Vega": "Ürünün Instagram - STAD Depo - Zimmet Depo kısımlarındaki toplam stok adedini belirtir",
+    "Günlük Ortalama Satış Adedi": "Ürünün son 1 haftaya göre toplam satış adedini son 1 haftaya göre kaç gündür aktif satışta olduğu güne böler ve haftanın ortalama satış adedini tespit eder",
+    "Dünün Satış Adedi": "Ürünün dün sattığı adedi belirtir",
+    "Ortalama Görüntülenme Adedi": "Ürünün son 1 haftaya göre toplam görüntülenme adedini son 1 haftaya göre kaç gündür aktif satışta olduğu güne böler ve haftanın ortalama görüntülenme adedini tespit eder",
+    "Görüntülenmenin Satışa Dönüş Oranı": "Ürünün ortalama görüntülenme adedini, ortalama satış adedine bölerek görüntülenmenin ne kadar satışa dönüştüğünü belirtir",
+    "Kaç Güne Biter Her Şey Dahil": "Ürünün Instagram - STAD Depo - Zimmet Depo - GMT - SİTA kısımlarındaki toplam stok adetlerinin ortalama satış adedine göre kaç günde biteceğini belirtir",
+    "Kaç Güne Biter Site ve Vega": "Ürünün Instagram - STAD Depo - Zimmet Depo kısımlarındaki toplam stok adetlerinin ortalama satış adedine göre kaç günde biteceğini belirtir",
+    "Alış Fiyatı": "Ürünün site üzerindeki güncel alış fiyatını belirtir",
+    "Satış Fiyatı": "Ürünün site üzerindeki güncel satış fiyatını belirtir",
+    "Resim Yüklenme Tarihi": "Ürünün resminin yüklenip satışa açıldığı tarihi belirtir",
+    "Kategori": "Ürünün ana kategorisini belirtir",
+    "GMT Stok Adedi": "Ürünün GMT üzerinde kalan olarak ne kadar stok adedi olduğunu belirtir",
+    "SİTA Stok Adedi": "Ürünün SİTA üzerinde ne kadar stok adedi olduğunu belirtir"
+}
+
+# Başlık hücrelerini bul ve açıklama ekle
+for cell in sheet[1]:  # 1. satırdaki tüm hücreleri kontrol eder
+    if cell.value in columns_with_comments:
+        # Yükseklik ve genişlik %100x%100 olacak şekilde açıklama oluştur
+        comment = Comment(columns_with_comments[cell.value], "Açıklama", width=200, height=150)
+        cell.comment = comment
+
+# Değişiklikleri kaydet
+workbook.save(dosya_yolu)
+
+# Workbook nesnesini serbest bırak ve önbelleği temizle
+del workbook
+gc.collect()
