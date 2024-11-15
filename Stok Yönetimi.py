@@ -753,7 +753,7 @@ df_calisma_alani.to_excel("sonuc_excel.xlsx", index=False)
 
 
 
-#region Satış Raporu Tarihini Düne Göre Ayarlama
+
 
 # Excel dosyasının ismi ve konumu
 filename = "Satış Raporu.xlsx"
@@ -809,7 +809,7 @@ if not is_file_downloaded_today(filename):
     # Selenium işlemleri tamamlandıktan sonra tarayıcıyı kapatın
     driver.quit()
 
-#endregion
+
 
 #region Satış Raporunu İndirme
 
