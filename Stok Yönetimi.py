@@ -73,6 +73,7 @@ import json
 import gc
 from concurrent.futures import ThreadPoolExecutor, as_completed
 from openpyxl.comments import Comment
+from selenium.webdriver.chrome.options import Options
 warnings.filterwarnings("ignore")
 pd.options.mode.chained_assignment = None
 init(autoreset=True)
@@ -86,6 +87,87 @@ print("(҂`_´)")
 print(Fore.RED + "<,︻╦╤─ ҉ - -")
 print(" /﹋\ ")
 print("Mustafa ARI")
+
+
+
+
+# Gizli modda Chrome ayarları
+chrome_options = Options()
+chrome_options.add_argument("--headless")  # Tarayıcıyı ekranda göstermemek için
+chrome_options.add_argument("--incognito")  # Gizli modda çalıştırmak için
+chrome_options.add_argument("--disable-gpu")
+chrome_options.add_argument("--no-sandbox")
+chrome_options.add_argument("--disable-dev-shm-usage")
+
+# ChromeDriver hizmeti
+service = Service()
+
+# Tarayıcı başlat
+driver = webdriver.Chrome(service=service, options=chrome_options)
+
+# Kullanıcı bilgileri
+username = "mustafa_kod@haydigiy.com"
+password = "123456"
+
+# URL'ler
+login_url = "https://task.haydigiy.com/kullanici-giris/?ReturnUrl=%2Fadmin"
+product_list_url = "https://task.haydigiy.com/admin/product/list/"
+
+try:
+    # Giriş sayfasına git
+    driver.get(login_url)
+    time.sleep(2)  # Sayfanın yüklenmesini bekleyin
+
+    # Giriş bilgilerini doldur
+    driver.find_element(By.NAME, "EmailOrPhone").send_keys(username)
+    driver.find_element(By.NAME, "Password").send_keys(password)
+    driver.find_element(By.CSS_SELECTOR, "button[type='submit']").click()
+    time.sleep(3)  # Giriş sonrası bekleme süresi
+
+    # Ürün listesi sayfasına git
+    driver.get(product_list_url)
+    time.sleep(5)  # Sayfanın tamamen yüklenmesini bekleyin
+
+    # Bugünün tarihini alın
+    current_date = datetime.now().strftime("%d.%m.%Y")
+
+    # Dinamik yüklenen ürün verilerini çek
+    rows = driver.find_elements(By.CSS_SELECTOR, "tr[data-uid]")
+
+    if not rows:
+        print(Fore.RED + "Ürün listesi bulunamadı veya doğru yüklenmedi." + Style.RESET_ALL)
+    else:
+        # Kontrol için bayrak (flag)
+        contains_today = False
+
+        for row in rows:
+            # Tarih hücresini bulun (5. sütun)
+            date_cell = row.find_elements(By.TAG_NAME, "td")[4].text.strip()
+
+            if current_date in date_cell:
+                contains_today = True
+                break  # Bugünün tarihi bulunduysa döngüyü durdur
+
+        # Bayrağa göre mesaj yazdır
+        if contains_today:
+            print(Fore.GREEN + "Entegrasyondan Sonraki Listeyi Çekiyorsunuz" + Style.RESET_ALL)
+        else:
+            print(Fore.RED + "Dikkat Entegrasyondan Önceki Listeyi Çekiyorsunuz !" + Style.RESET_ALL)
+
+except Exception as e:
+    print(Fore.RED + f"Hata oluştu: {e}" + Style.RESET_ALL)
+finally:
+    # Tarayıcıyı kapat
+    driver.quit()
+
+
+
+
+
+
+
+
+
 
 
 
@@ -138,9 +220,6 @@ elif secim == "6":
 
         # Aynı olan satırları teke düşür
         df.drop_duplicates(inplace=True)
-
-        from openpyxl.utils import get_column_letter
-        import openpyxl
 
         # Excel dosyasını açın
         workbook = openpyxl.load_workbook("1-3 Arası Aktif Ürünler.xlsx")
@@ -753,7 +832,7 @@ df_calisma_alani.to_excel("sonuc_excel.xlsx", index=False)
 
 
 
-
+#region Satış Raporu Tarihini Düne Göre Ayarlama
 
 # Excel dosyasının ismi ve konumu
 filename = "Satış Raporu.xlsx"
@@ -809,7 +888,7 @@ if not is_file_downloaded_today(filename):
     # Selenium işlemleri tamamlandıktan sonra tarayıcıyı kapatın
     driver.quit()
 
-
+#endregion
 
 #region Satış Raporunu İndirme
 
