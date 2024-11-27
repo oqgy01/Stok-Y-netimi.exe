@@ -567,19 +567,22 @@ filtered_df.to_excel("sonuc_excel.xlsx", index=False)
 # Excel dosyasını okuma
 df = pd.read_excel("sonuc_excel.xlsx")
 
+# NaN değerleri boş string ile doldurma
+df['Kategori'] = df['Kategori'].fillna("")
+
 # Kategori sütunundan istenilen kısmı ayıklama fonksiyonu
 def extract_category(text):
-    # > ve ; karakterleri arasındaki ilk bölümü bulma
+    if not isinstance(text, str):
+        return None
     match = re.search(r'>\s*([^;]+)', text)
     if match:
         return match.group(1).strip()
-    # Eğer match bulunmazsa "TESETTÜR" ifadesi olup olmadığını kontrol et
     elif "TESETTÜR" in text:
         return "TESETTÜR"
     return None
 
 # Yeni bir sütun oluşturup ayıklanan veriyi ekleme
-df['Kategori'] = df['Kategori'].apply(extract_category)
+df['Yeni_Kategori'] = df['Kategori'].apply(extract_category)
 
 # Yeni DataFrame'i bir Excel dosyasına kaydetme
 df.to_excel("sonuc_excel.xlsx", index=False)
