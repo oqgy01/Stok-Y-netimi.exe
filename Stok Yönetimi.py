@@ -191,6 +191,8 @@ elif secim == "5":
     kolon_adi = "Kategori"
     kullanici_input = input("Kategori (Ör: YENİ SEZON): ")
 
+etiket_secimi = input("Sadece Etiketli Ürünleri mi Çekmek İstiyorsunuz (E/H): ").strip().upper()
+
 
 
 elif secim == "6":
@@ -508,11 +510,14 @@ else:
 
 
 # İndirilecek linkler
-links = [
-    "https://www.siparis.haydigiy.com/FaprikaXls/ZIMVGV/1/",
-    "https://www.siparis.haydigiy.com/FaprikaXls/ZIMVGV/2/",
-    "https://www.siparis.haydigiy.com/FaprikaXls/ZIMVGV/3/"
-]
+if etiket_secimi == "E":
+    links = ["https://www.siparis.haydigiy.com/FaprikaXls/B0JC0W/1/"]
+else:
+    links = [
+        "https://www.siparis.haydigiy.com/FaprikaXls/ZIMVGV/1/",
+        "https://www.siparis.haydigiy.com/FaprikaXls/ZIMVGV/2/",
+        "https://www.siparis.haydigiy.com/FaprikaXls/ZIMVGV/3/"
+    ]
 
 # Excel dosyalarını indirip birleştirme
 dfs = []
@@ -527,19 +532,13 @@ for link in links:
         dfs.append(selected_rows)
     else:
         print(f"Hata: {response.status_code} - {link}")
-# Excel dosyalarını indirip birleştirme
-dfs = []
-for link in links:
-    response = requests.get(link)
-    if response.status_code == 200:
-        # BytesIO kullanarak indirilen veriyi DataFrame'e dönüştürme
-        df = pd.read_excel(BytesIO(response.content))
-        
-        # Belirli sütunu ve kullanıcının girdiği değeri içeren satırları seçme
-        selected_rows = df[df[kolon_adi].astype(str).str.contains(re.escape(kullanici_input), case=False, na=False)]
-        dfs.append(selected_rows)
-    else:
-        print(f"Hata: {response.status_code} - {link}")
+
+# Tüm seçilen verileri birleştirme
+if dfs:
+    final_df = pd.concat(dfs, ignore_index=True)
+    print("Veriler başarıyla çekildi ve birleştirildi.")
+else:
+    print("Uygun veri bulunamadı.")
 
 
 # Seçilen sütunu içeren satırları birleştirme
