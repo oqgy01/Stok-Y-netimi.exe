@@ -535,7 +535,6 @@ for link in links:
 # Tüm seçilen verileri birleştirme
 if dfs:
     final_df = pd.concat(dfs, ignore_index=True)
-    print("Veriler başarıyla çekildi ve birleştirildi.")
 else:
     print("Uygun veri bulunamadı.")
 
