@@ -174,6 +174,7 @@ finally:
 # Kullanıcıdan seçim yapılması
 secim = input(Fore.YELLOW + "\n1. Firma Kodu Bazlı\n2. Ürün Adında Geçen Bir Kelime ya da Kısım\n3. Kumaş Bazlı\n4. Kalıp Bazlı\n5. Kategori Bazlı" + Fore.LIGHTCYAN_EX + "\n6. 1-3 Arası Aktif Ürünler\n7. Raf Ömrü Girme" + Fore.WHITE + "\nSeçim: ")
 
+etiket_secimi = input("Sadece Etiketli Ürünleri mi Çekmek İstiyorsunuz (E/H): ").strip().upper()
 
 if secim == "1":
     kolon_adi = "UrunAdi"
@@ -191,7 +192,7 @@ elif secim == "5":
     kolon_adi = "Kategori"
     kullanici_input = input("Kategori (Ör: YENİ SEZON): ")
 
-etiket_secimi = input("Sadece Etiketli Ürünleri mi Çekmek İstiyorsunuz (E/H): ").strip().upper()
+
 
 
 
