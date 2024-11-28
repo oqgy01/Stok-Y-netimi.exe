@@ -1190,29 +1190,39 @@ with pd.ExcelWriter('sonuc_excel.xlsx', engine='xlsxwriter') as writer:
     shaded_format = workbook.add_format({'bg_color': '#D9D9D9', 'align': 'center', 'valign': 'vcenter'})
     shaded_left_align_format = workbook.add_format({'bg_color': '#D9D9D9', 'align': 'left', 'valign': 'vcenter'})
 
-    # Satırları ve sütunları dolaşarak biçimlendirme
     for row_num, row in enumerate(df_calisma_alani.itertuples(), start=1):
         for col_num, value in enumerate(row[1:]):  # row[0] index olduğu için atlanıyor
             col_name = df_calisma_alani.columns[col_num]
-            if col_num == 0:  # Ürün Adı sütunu
-                link = links[row_num - 1]  # Resim sütunundaki bağlantıyı Ürün Adı'ye ekliyoruz
-                if row_num % 2 == 1:
-                    worksheet.write_url(row_num, col_num, link, string=value, cell_format=shaded_left_align_format)
+            try:
+                if col_num == 0:  # Ürün Adı sütunu
+                    link = links[row_num - 1]  # Resim sütunundaki bağlantıyı Ürün Adı'ya ekliyoruz
+                    if isinstance(link, str) and link.startswith("http"):  # Link geçerli mi?
+                        if row_num % 2 == 1:
+                            worksheet.write_url(row_num, col_num, link, string=value, cell_format=shaded_left_align_format)
+                        else:
+                            worksheet.write_url(row_num, col_num, link, string=value, cell_format=left_align_format)
+                    else:  # Link geçerli değilse düz metin olarak yaz
+                        if row_num % 2 == 1:
+                            worksheet.write(row_num, col_num, value, shaded_left_align_format)
+                        else:
+                            worksheet.write(row_num, col_num, value, left_align_format)
+                elif col_name in ["Alış Fiyatı", "Satış Fiyatı"]:
+                    # Para birimi formatı uygulama, alternatif satır renklendirme ile ve orta hizalı
+                    if row_num % 2 == 1:
+                        worksheet.write(row_num, col_num, value, shaded_currency_format)
+                    else:
+                        worksheet.write(row_num, col_num, value, currency_format)
+                elif col_name in ["GMT Stok Adedi", "SİTA Stok Adedi"] and "Var" in str(value):
+                    worksheet.write(row_num, col_num, value, var_format)
                 else:
-                    worksheet.write_url(row_num, col_num, link, string=value, cell_format=left_align_format)
-            elif col_name in ["Alış Fiyatı", "Satış Fiyatı"]:
-                # Para birimi formatı uygulama, alternatif satır renklendirme ile ve orta hizalı
-                if row_num % 2 == 1:
-                    worksheet.write(row_num, col_num, value, shaded_currency_format)
-                else:
-                    worksheet.write(row_num, col_num, value, currency_format)
-            elif col_name in ["GMT Stok Adedi", "SİTA Stok Adedi"] and "Var" in str(value):
-                worksheet.write(row_num, col_num, value, var_format)
-            else:
-                if row_num % 2 == 1:
-                    worksheet.write(row_num, col_num, value, shaded_format)
-                else:
-                    worksheet.write(row_num, col_num, value, center_format)
+                    if row_num % 2 == 1:
+                        worksheet.write(row_num, col_num, value, shaded_format)
+                    else:
+                        worksheet.write(row_num, col_num, value, center_format)
+            except Exception as e:
+                # Hata durumunda devam et
+                print(f"Hata: Satır {row_num}, Sütun {col_num}, Değer: {value}, Hata Mesajı: {e}")
+                continue
 
     # Başlıklara filtre ekleme
     worksheet.autofilter(0, 0, 0, len(df_calisma_alani.columns) - 1)
