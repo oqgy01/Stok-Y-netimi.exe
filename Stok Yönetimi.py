@@ -1467,7 +1467,7 @@ if sheet_adi in workbook.sheetnames:
             alis_fiyati_hucre = sheet.cell(row=row, column=alis_fiyati_kolon)
 
             if liste_fiyati2 is not None and satis_fiyati is not None:
-                fark = abs(liste_fiyati2 - satis_fiyati)
+                fark = liste_fiyati2 - satis_fiyati  # ListeFiyati2 - Satış Fiyatı farkı
 
                 # Fark 7'den büyükse yazı rengini kırmızı yap
                 if fark > 7:
@@ -1478,7 +1478,6 @@ if sheet_adi in workbook.sheetnames:
 
 # Değişiklikleri kaydet
 workbook.save(dosya_adi)
-
 
 
 
@@ -1612,3 +1611,27 @@ workbook.save(dosya_adi)
 
 
 
+
+
+
+
+
+# Nirvana.xlsx dosyasını yükle
+dosya_adi = "Nirvana.xlsx"
+sheet_adi = "Sheet1_Copy"
+workbook = openpyxl.load_workbook(dosya_adi)
+
+# Belirtilen sayfayı seç
+if sheet_adi in workbook.sheetnames:
+    sheet = workbook[sheet_adi]
+
+    # Sütun filtreleme özelliği ekleme
+    max_row = sheet.max_row
+    max_col = sheet.max_column
+    filter_ref = f"A1:{openpyxl.utils.get_column_letter(max_col)}{max_row}"
+
+    # AutoFilter özelliğini ekle
+    sheet.auto_filter.ref = filter_ref
+
+# Değişiklikleri kaydet
+workbook.save(dosya_adi)
