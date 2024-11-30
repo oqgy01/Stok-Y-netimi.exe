@@ -1,6 +1,7 @@
 #Doğrulama Kodu
 import requests
 from bs4 import BeautifulSoup
+
 url = "https://docs.google.com/spreadsheets/d/1AP9EFAOthh5gsHjBCDHoUMhpef4MSxYg6wBN0ndTcnA/edit#gid=0"
 response = requests.get(url)
 html_content = response.content
@@ -74,6 +75,7 @@ import gc
 from concurrent.futures import ThreadPoolExecutor, as_completed
 from openpyxl.comments import Comment
 from selenium.webdriver.chrome.options import Options
+from copy import copy
 warnings.filterwarnings("ignore")
 pd.options.mode.chained_assignment = None
 init(autoreset=True)
@@ -579,7 +581,7 @@ def extract_category(text):
     return None
 
 # Yeni bir sütun oluşturup ayıklanan veriyi ekleme
-df['Yeni_Kategori'] = df['Kategori'].apply(extract_category)
+df['Kategori'] = df['Kategori'].apply(extract_category)
 
 # Yeni DataFrame'i bir Excel dosyasına kaydetme
 df.to_excel("sonuc_excel.xlsx", index=False)
@@ -1286,3 +1288,327 @@ workbook.save(dosya_yolu)
 # Workbook nesnesini serbest bırak ve önbelleği temizle
 del workbook
 gc.collect()
+
+
+
+
+
+
+
+# KOPYA SAYFA
+
+
+# Nirvana.xlsx dosyasını yükle
+dosya_adi = "Nirvana.xlsx"
+workbook = openpyxl.load_workbook(dosya_adi)
+
+# Sheet1 sayfasını kopyala
+if "Sheet1" in workbook.sheetnames:
+    sheet1 = workbook["Sheet1"]
+    sheet_copy = workbook.copy_worksheet(sheet1)
+    sheet_copy.title = "Sheet1_Copy"  # Yeni sayfa adı
+
+# Dosyayı kaydet
+workbook.save(dosya_adi)
+
+
+
+
+
+
+
+
+
+
+# Excel dosyasını yükle
+dosya_adi = "Nirvana.xlsx"
+workbook = openpyxl.load_workbook(dosya_adi)
+
+# Kopya sayfayı seç
+kopya_sayfa_adi = "Sheet1_Copy"
+if kopya_sayfa_adi in workbook.sheetnames:
+    sheet = workbook[kopya_sayfa_adi]
+
+    # Başlıkları kontrol et ve "Stok Adedi Her Şey Dahil" sütununu bul
+    basliklar = {cell.value: cell.column for cell in sheet[1] if cell.value}
+    stok_adedi_kolon = basliklar.get("Stok Adedi Her Şey Dahil")
+
+    if stok_adedi_kolon:
+        # Yeni sütun indeksi (kopyalanan sütunun yanına eklenecek)
+        yeni_sutun_index = stok_adedi_kolon + 1
+
+        # "Stok Adedi Her Şey Dahil" sütununu biçimleriyle birlikte kopyala
+        for row in range(1, sheet.max_row + 1):
+            eski_hucre = sheet.cell(row=row, column=stok_adedi_kolon)
+            yeni_hucre = sheet.cell(row=row, column=yeni_sutun_index)
+
+            # Veriyi ve biçimlendirmeyi kopyala
+            yeni_hucre.value = eski_hucre.value
+            if eski_hucre.has_style:
+                yeni_hucre._style = copy(eski_hucre._style)
+
+        # Yeni sütuna başlık ekle
+        sheet.cell(row=1, column=yeni_sutun_index).value = "Kar Yüzdesi"
+
+        # Gerekli sütunların indekslerini belirle
+        satis_fiyati_kolon = basliklar.get("Satış Fiyatı")
+        alis_fiyati_kolon = basliklar.get("Alış Fiyatı")
+
+        if satis_fiyati_kolon and alis_fiyati_kolon:
+            # Kar yüzdesi hesaplamasını yap ve yüzde formatını uygula
+            for row in range(2, sheet.max_row + 1):
+                satis_fiyati = sheet.cell(row=row, column=satis_fiyati_kolon).value
+                alis_fiyati = sheet.cell(row=row, column=alis_fiyati_kolon).value
+
+                yeni_hucre = sheet.cell(row=row, column=yeni_sutun_index)
+
+                if satis_fiyati and alis_fiyati:  # Boş hücreleri kontrol et
+                    try:
+                        kar_yuzdesi = (satis_fiyati - alis_fiyati) / satis_fiyati
+                        yeni_hucre.value = kar_yuzdesi
+                        yeni_hucre.number_format = "0.00%"  # Yüzde formatı
+                    except ZeroDivisionError:
+                        yeni_hucre.value = None
+
+# Değişiklikleri kaydet
+workbook.save(dosya_adi)
+
+
+
+
+
+
+
+
+
+
+
+
+# Excel dosyasını yükle
+dosya_adi = "Nirvana.xlsx"
+sheet_adi = "Sheet1_Copy"
+workbook = openpyxl.load_workbook(dosya_adi)
+if sheet_adi in workbook.sheetnames:
+    sheet = workbook[sheet_adi]
+
+    # Başlıkları ve kolon indekslerini belirle
+    basliklar = {cell.value: cell.column for cell in sheet[1] if cell.value}
+    alis_fiyati_kolon = basliklar.get("Alış Fiyatı")
+    kategori_kolon = basliklar.get("Kategori")
+    yeni_kolon_index = sheet.max_column + 1
+
+    # Yeni sütuna başlık ekle
+    sheet.cell(row=1, column=yeni_kolon_index).value = "ListeFiyati2"
+
+    # Liste fiyatını hesaplayarak yeni sütuna ekle
+    for row in range(2, sheet.max_row + 1):
+        alis_fiyati = sheet.cell(row=row, column=alis_fiyati_kolon).value
+        kategori = sheet.cell(row=row, column=kategori_kolon).value
+
+        if alis_fiyati is not None:
+            # Liste fiyatını hesaplama
+            if 0 <= alis_fiyati <= 24.99:
+                result = alis_fiyati + 10
+            elif 25 <= alis_fiyati <= 39.99:
+                result = alis_fiyati + 13
+            elif 40 <= alis_fiyati <= 59.99:
+                result = alis_fiyati + 17
+            elif 60 <= alis_fiyati <= 200.99:
+                result = alis_fiyati * 1.30
+            elif alis_fiyati >= 201:
+                result = alis_fiyati * 1.25
+            else:
+                result = alis_fiyati
+
+            # KDV hesaplama
+            if isinstance(kategori, str) and any(category in kategori for category in ["Parfüm", "Gözlük", "Saat", "Kolye", "Küpe", "Bileklik", "Bilezik"]):
+                result *= 1.20
+            else:
+                result *= 1.10
+
+            # Sonuç ekle
+            sheet.cell(row=row, column=yeni_kolon_index).value = result
+
+# Değişiklikleri kaydet
+workbook.save(dosya_adi)
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+# Excel dosyasını yükle
+dosya_adi = "Nirvana.xlsx"
+sheet_adi = "Sheet1_Copy"
+workbook = openpyxl.load_workbook(dosya_adi)
+if sheet_adi in workbook.sheetnames:
+    sheet = workbook[sheet_adi]
+
+    # Başlıkları ve kolon indekslerini belirle
+    basliklar = {cell.value: cell.column for cell in sheet[1] if cell.value}
+    liste_fiyati2_kolon = basliklar.get("ListeFiyati2")
+    satis_fiyati_kolon = basliklar.get("Satış Fiyatı")
+    alis_fiyati_kolon = basliklar.get("Alış Fiyatı")
+
+    if liste_fiyati2_kolon and satis_fiyati_kolon and alis_fiyati_kolon:
+        for row in range(2, sheet.max_row + 1):
+            liste_fiyati2 = sheet.cell(row=row, column=liste_fiyati2_kolon).value
+            satis_fiyati = sheet.cell(row=row, column=satis_fiyati_kolon).value
+            alis_fiyati_hucre = sheet.cell(row=row, column=alis_fiyati_kolon)
+
+            if liste_fiyati2 is not None and satis_fiyati is not None:
+                fark = abs(liste_fiyati2 - satis_fiyati)
+
+                # Fark 7'den büyükse yazı rengini kırmızı yap
+                if fark > 7:
+                    alis_fiyati_hucre.font = Font(color="FF0000")  # Kırmızı renk
+                else:
+                    # Eğer renk değiştirilmemesi gerekiyorsa hiçbir işlem yapılmaz
+                    pass
+
+# Değişiklikleri kaydet
+workbook.save(dosya_adi)
+
+
+
+
+
+
+
+
+
+
+# Excel dosyasını yükle
+dosya_adi = "Nirvana.xlsx"
+sheet_adi = "Sheet1_Copy"
+workbook = openpyxl.load_workbook(dosya_adi)
+
+# Kopya sayfayı seç
+if sheet_adi in workbook.sheetnames:
+    sheet = workbook[sheet_adi]
+
+    # "ListeFiyati2" sütununu bul ve sil
+    basliklar = {cell.value: cell.column for cell in sheet[1] if cell.value}
+    liste_fiyati2_kolon = basliklar.get("ListeFiyati2")
+
+    if liste_fiyati2_kolon:
+        sheet.delete_cols(liste_fiyati2_kolon)
+
+# Değişiklikleri kaydet
+workbook.save(dosya_adi)
+
+
+
+
+
+
+
+
+
+
+
+
+
+# Nirvana.xlsx dosyasını yükle
+dosya_adi = "Nirvana.xlsx"
+workbook = openpyxl.load_workbook(dosya_adi)
+
+# Kopya sayfayı seç
+kopya_sayfa_adi = "Sheet1_Copy"
+if kopya_sayfa_adi in workbook.sheetnames:
+    sheet = workbook[kopya_sayfa_adi]
+
+    # Silinecek sütunların adları
+    silinecek_sutunlar = [
+        "İnstagram Stok Adedi",
+        "Stok Adedi Site ve Vega",
+        "Ortalama Görüntülenme Adedi",
+        "Kaç Güne Biter Site ve Vega",
+        "Satış Fiyatı"
+    ]
+
+    # Başlıkları oku ve sütunları belirle
+    basliklar = {cell.value: cell.column for cell in sheet[1] if cell.value is not None}
+
+    # Sütunları tersten sil (indeks kaymasını önlemek için)
+    for sutun_adi in reversed(silinecek_sutunlar):
+        if sutun_adi in basliklar:
+            sheet.delete_cols(basliklar[sutun_adi])
+
+# Değişiklikleri kaydet
+workbook.save(dosya_adi)
+
+
+
+
+
+
+
+
+# Nirvana.xlsx dosyasını tekrar yükle
+workbook = openpyxl.load_workbook(dosya_adi)
+
+# Kopya sayfayı seç
+if kopya_sayfa_adi in workbook.sheetnames:
+    sheet = workbook[kopya_sayfa_adi]
+
+    # Gizlenecek sütunların adları
+    gizlenecek_sutunlar = [
+        "Resim Yüklenme Tarihi",
+        "Kategori",
+        "GMT Stok Adedi",
+        "SİTA Stok Adedi"
+    ]
+
+    # Başlıkları oku ve sütunları belirle
+    basliklar = {cell.value: cell.column for cell in sheet[1] if cell.value is not None}
+
+    # Gizlenecek sütunları gizle
+    for sutun_adi in gizlenecek_sutunlar:
+        if sutun_adi in basliklar:
+            sheet.column_dimensions[openpyxl.utils.get_column_letter(basliklar[sutun_adi])].hidden = True
+
+# Değişiklikleri kaydet
+workbook.save(dosya_adi)
+
+
+
+
+
+
+
+
+
+
+# Nirvana.xlsx dosyasını yükle
+dosya_adi = "Nirvana.xlsx"
+workbook = openpyxl.load_workbook(dosya_adi)
+
+# Kopya sayfayı seç
+kopya_sayfa_adi = "Sheet1_Copy"
+if kopya_sayfa_adi in workbook.sheetnames:
+    sheet = workbook[kopya_sayfa_adi]
+
+    # Başlıkları kontrol et ve "Kar Yüzdesi" sütununu bul
+    basliklar = {cell.value: cell.column for cell in sheet[1] if cell.value is not None}
+    if "Kar Yüzdesi" in basliklar:
+        kar_yuzdesi_kolon = basliklar["Kar Yüzdesi"]
+
+        # Sütunu görünür yap
+        sheet.column_dimensions[openpyxl.utils.get_column_letter(kar_yuzdesi_kolon)].hidden = False
+
+# Değişiklikleri kaydet
+workbook.save(dosya_adi)
+
+
+
