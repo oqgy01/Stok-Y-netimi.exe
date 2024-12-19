@@ -76,6 +76,7 @@ from concurrent.futures import ThreadPoolExecutor, as_completed
 from openpyxl.comments import Comment
 from selenium.webdriver.chrome.options import Options
 from copy import copy
+from openpyxl.styles import PatternFill
 warnings.filterwarnings("ignore")
 pd.options.mode.chained_assignment = None
 init(autoreset=True)
@@ -112,8 +113,8 @@ username = "mustafa_kod@haydigiy.com"
 password = "123456"
 
 # URL'ler
-login_url = "https://task.haydigiy.com/kullanici-giris/?ReturnUrl=%2Fadmin"
-product_list_url = "https://task.haydigiy.com/admin/product/list/"
+login_url = "https://www.siparis.haydigiy.com/kullanici-giris/?ReturnUrl=%2Fadmin"
+product_list_url = "https://www.siparis.haydigiy.com/admin/product/list/"
 
 try:
     # Giriş sayfasına git
@@ -132,6 +133,7 @@ try:
 
     # Bugünün tarihini alın
     current_date = datetime.now().strftime("%d.%m.%Y")
+    current_date_single_digit = f"{datetime.now().day}.{datetime.now().strftime('%m.%Y')}"  # Tek basamaklı gün formatı
 
     # Dinamik yüklenen ürün verilerini çek
     rows = driver.find_elements(By.CSS_SELECTOR, "tr[data-uid]")
@@ -146,7 +148,8 @@ try:
             # Tarih hücresini bulun (5. sütun)
             date_cell = row.find_elements(By.TAG_NAME, "td")[4].text.strip()
 
-            if current_date in date_cell:
+            # Çift basamaklı ve tek basamaklı gün kontrolü
+            if current_date in date_cell or current_date_single_digit in date_cell:
                 contains_today = True
                 break  # Bugünün tarihi bulunduysa döngüyü durdur
 
@@ -545,7 +548,7 @@ else:
 merged_df = pd.concat(dfs, ignore_index=True)
 
 # Belirli başlıklar dışındaki sütunları silme
-selected_columns = ["UrunAdi", "StokAdedi", "AlisFiyati", "SatisFiyati", "Kategori", "Resim", "AramaTerimleri", "MorhipoKodu", "VaryasyonMorhipoKodu", "HepsiBuradaKodu"]
+selected_columns = ["UrunAdi", "StokAdedi", "AlisFiyati", "SatisFiyati", "Kategori", "Resim", "AramaTerimleri", "MorhipoKodu", "VaryasyonMorhipoKodu", "HepsiBuradaKodu", "Marka"]
 filtered_df = merged_df[selected_columns]
 
 # Sonuç DataFrame'i tek bir Excel dosyasına yazma
@@ -854,7 +857,7 @@ if not is_file_downloaded_today(filename):
     # ChromeDriver'ı en son sürümüyle otomatik olarak indirip kullan
     driver = webdriver.Chrome(service=Service(ChromeDriverManager().install()))
 
-    login_url = "https://task.haydigiy.com/kullanici-giris/?ReturnUrl=%2Fadmin"
+    login_url = "https://www.siparis.haydigiy.com/kullanici-giris/?ReturnUrl=%2Fadmin"
     driver.get(login_url)
 
     # Giriş bilgilerini doldurma
@@ -866,7 +869,7 @@ if not is_file_downloaded_today(filename):
     password_input.send_keys(Keys.RETURN)
 
     # Belirttiğiniz sayfaya yönlendirme
-    desired_page_url = "https://task.haydigiy.com/admin/exportorder/edit/154/"
+    desired_page_url = "https://www.siparis.haydigiy.com/admin/exportorder/edit/154/"
     driver.get(desired_page_url)
 
     # Dünün tarihini al
@@ -895,7 +898,7 @@ if not is_file_downloaded_today(filename):
 #region Satış Raporunu İndirme
 
 # Excel dosyasının indirileceği URL
-url = "https://task.haydigiy.com/FaprikaOrderXls/GZPCKE/1/"
+url = "https://www.siparis.haydigiy.com/FaprikaOrderXls/GZPCKE/1/"
 filename = "Satış Raporu.xlsx"
 
 # Dosyanın indirilme tarihini kontrol etmek için fonksiyon
@@ -1094,7 +1097,7 @@ df_calisma_alani = df_calisma_alani.rename(columns={"StokAdedi": "İnstagram Sto
 column_order = ["UrunAdi", "İnstagram Stok Adedi", "Stok Adedi Her Şey Dahil", "Stok Adedi Site ve Vega", 
                 "Günlük Ortalama Satış Adedi", "Dünün Satış Adedi", "Ortalama Görüntülenme Adedi", "Görüntülenmenin Satışa Dönüş Oranı", 
                 "Kaç Güne Biter Her Şey Dahil", "Kaç Güne Biter Site ve Vega", "AlisFiyati", "SatisFiyati", 
-                "AramaTerimleri", "Resim", "Kategori", "GMT Stok Adedi", "SİTA Stok Adedi"]
+                "AramaTerimleri", "Resim", "Kategori", "GMT Stok Adedi", "SİTA Stok Adedi", "Marka"]
 df_calisma_alani = df_calisma_alani[column_order]
 
 # Tekrarlanan satırları silme
@@ -1288,6 +1291,66 @@ workbook.save(dosya_yolu)
 # Workbook nesnesini serbest bırak ve önbelleği temizle
 del workbook
 gc.collect()
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+# Excel dosyasını yükle
+file_path = "Nirvana.xlsx"
+workbook = openpyxl.load_workbook(file_path)
+sheet = workbook["Sheet1"]
+
+# "Ürün Adı" ve "Marka" sütunlarının indekslerini bul
+urun_adi_column = None
+marka_column = None
+
+for col_index, column in enumerate(sheet[1], start=1):
+    if column.value == "Ürün Adı":
+        urun_adi_column = col_index
+    elif column.value == "Marka":
+        marka_column = col_index
+
+# Hata kontrolü: Eğer "Ürün Adı" veya "Marka" sütunu bulunamazsa
+if urun_adi_column is None or marka_column is None:
+    raise ValueError("'Ürün Adı' veya 'Marka' sütunu bulunamadı.")
+
+# Verileri kontrol edip hücre rengini değiştirme
+for row in sheet.iter_rows(min_row=2):  # Başlık satırını atla
+    urun_adi_cell = row[urun_adi_column - 1]
+    marka_cell = row[marka_column - 1]
+
+    if marka_cell.value and isinstance(marka_cell.value, str) and "Sigara Ürün" in marka_cell.value:
+        urun_adi_cell.fill = PatternFill(start_color="ADD8E6", end_color="ADD8E6", fill_type="solid")  # Açık mavi renk
+
+# "Marka" sütununu sil
+sheet.delete_cols(marka_column)
+
+# Değişiklikleri kaydet
+workbook.save(file_path)
+
+
+
+
+
+
+
+
+
+
+
+
+
 
 
 
