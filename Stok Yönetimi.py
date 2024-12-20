@@ -548,7 +548,7 @@ else:
 merged_df = pd.concat(dfs, ignore_index=True)
 
 # Belirli başlıklar dışındaki sütunları silme
-selected_columns = ["UrunAdi", "StokAdedi", "AlisFiyati", "SatisFiyati", "Kategori", "Resim", "AramaTerimleri", "MorhipoKodu", "VaryasyonMorhipoKodu", "HepsiBuradaKodu", "Marka"]
+selected_columns = ["UrunAdi", "StokAdedi", "AlisFiyati", "SatisFiyati", "Kategori", "Resim", "AramaTerimleri", "MorhipoKodu", "VaryasyonMorhipoKodu", "HepsiBuradaKodu", "Marka", "N11Kodu"]
 filtered_df = merged_df[selected_columns]
 
 # Sonuç DataFrame'i tek bir Excel dosyasına yazma
@@ -1097,7 +1097,7 @@ df_calisma_alani = df_calisma_alani.rename(columns={"StokAdedi": "İnstagram Sto
 column_order = ["UrunAdi", "İnstagram Stok Adedi", "Stok Adedi Her Şey Dahil", "Stok Adedi Site ve Vega", 
                 "Günlük Ortalama Satış Adedi", "Dünün Satış Adedi", "Ortalama Görüntülenme Adedi", "Görüntülenmenin Satışa Dönüş Oranı", 
                 "Kaç Güne Biter Her Şey Dahil", "Kaç Güne Biter Site ve Vega", "AlisFiyati", "SatisFiyati", 
-                "AramaTerimleri", "Resim", "Kategori", "GMT Stok Adedi", "SİTA Stok Adedi", "Marka"]
+                "AramaTerimleri", "Resim", "Kategori", "GMT Stok Adedi", "SİTA Stok Adedi", "Marka", "N11Kodu"]
 df_calisma_alani = df_calisma_alani[column_order]
 
 # Tekrarlanan satırları silme
@@ -1126,6 +1126,7 @@ df_calisma_alani.rename(columns={"AramaTerimleri": "Resim Yüklenme Tarihi"}, in
 df_calisma_alani.rename(columns={"AlisFiyati": "Alış Fiyatı"}, inplace=True)
 df_calisma_alani.rename(columns={"SatisFiyati": "Satış Fiyatı"}, inplace=True)
 df_calisma_alani.rename(columns={"UrunAdi": "Ürün Adı"}, inplace=True)
+df_calisma_alani.rename(columns={"N11Kodu": "Mevsim"}, inplace=True)
 
 # "Resim" sütununu DataFrame'den kaldır
 df_calisma_alani.drop(columns=["Resim"], inplace=True)
