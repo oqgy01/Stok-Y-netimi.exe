@@ -12,9 +12,6 @@ if first_cell != "Aktif":
 first_cell = soup.find("td", {"class": "s1"}).text.strip()
 print(first_cell)
 
-
-
-
 import pandas as pd
 from io import BytesIO
 import re
@@ -81,8 +78,6 @@ warnings.filterwarnings("ignore")
 pd.options.mode.chained_assignment = None
 init(autoreset=True)
 
-
-
 print(" ")
 print(Fore.GREEN + "Oturum Açma Başarılı Oldu")
 print(" /﹋\ ")
@@ -91,8 +86,7 @@ print(Fore.RED + "<,︻╦╤─ ҉ - -")
 print(" /﹋\ ")
 print("Mustafa ARI")
 
-
-
+#region // Entegrasyondan Önce mi Sonra mı Kontrolü
 
 # Gizli modda Chrome ayarları
 chrome_options = Options()
@@ -166,13 +160,9 @@ finally:
     driver.quit()
 
 
+#endregion
 
-
-
-
-
-
-
+#region // Seçim Yapma Alanı
 
 etiket_secimi = input("Sadece Etiketli Ürünleri mi Çekmek İstiyorsunuz (E/H): ").strip().upper()
 
@@ -195,9 +185,9 @@ elif secim == "5":
     kolon_adi = "Kategori"
     kullanici_input = input("Kategori (Ör: YENİ SEZON): ")
 
+#endregion
 
-
-
+#region // Seçim 6 (1-3 Arası Aktif Ürünler)
 
 elif secim == "6":
 
@@ -291,8 +281,9 @@ elif secim == "6":
     exit()  
 
 
+#endregion
 
-
+#region // Seçim 7 (Raf Ömrü Girme)
 
 elif secim == "7":
     try:
@@ -486,32 +477,9 @@ else:
     print("Geçersiz seçim.")
     exit()
 
+#endregion
 
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
+#region // Sadece Etiketli Ürünler mi Sorusu ve Ürün Listesi İndirme
 
 # İndirilecek linkler
 if etiket_secimi == "E":
@@ -554,17 +522,11 @@ filtered_df = merged_df[selected_columns]
 # Sonuç DataFrame'i tek bir Excel dosyasına yazma
 filtered_df.to_excel("sonuc_excel.xlsx", index=False)
 
+print(Fore.GREEN + "BAŞARILI - Ürün Listesi İndirme ve Sütun Ayarlamaları")
 
+#endregion
 
-
-
-
-
-
-
-
-
-
+#region // Ürünlerin Kategorilerini Belirleme ve Tesettür Ayarlaması
 
 # Excel dosyasını okuma
 df = pd.read_excel("sonuc_excel.xlsx")
@@ -589,22 +551,11 @@ df['Kategori'] = df['Kategori'].apply(extract_category)
 # Yeni DataFrame'i bir Excel dosyasına kaydetme
 df.to_excel("sonuc_excel.xlsx", index=False)
 
+print(Fore.GREEN + "BAŞARILI - Ürünlerin Kategorilerini Belirleme ve Tesettür Ayarlaması")
 
+#endregion
 
-
-
-
-
-
-
-
-
-
-
-
-
-
-
+#region // UrunAdi Duzenleme Sütununu Oluşturma ve Sadece Ürün Kodlarını Bırakma
 
 # sonuc_excel.xlsx dosyasını oku
 sonuc_excel_file = "sonuc_excel.xlsx"
@@ -625,22 +576,11 @@ sonuc_df['UrunAdi Duzenleme'] = sonuc_df['UrunAdi Duzenleme'].astype(str)
 updated_excel_file = "sonuc_excel.xlsx"
 sonuc_df.to_excel(updated_excel_file, index=False)
 
+print(Fore.GREEN + "BAŞARILI - UrunAdi Duzenleme Sütununu Oluşturma ve Sadece Ürün Kodlarını Bırakma")
 
+#endregion
 
-
-
-
-
-
-
-
-
-
-
-
-
-
-
+#region // GMT ve SİTA Verilerini Çekme
 
 # Google Sheet URL
 google_sheet_url = "https://docs.google.com/spreadsheets/d/1aA5LhkQYgtwHLcKRV1mKl9Lb6VeOgUNIC9zy2kRagrs/gviz/tq?tqx=out:csv"
@@ -665,30 +605,14 @@ try:
     google_excel_file = "GMT ve SİTA.xlsx"
     google_df.to_excel(google_excel_file, index=False)
     
-
-    
 except requests.exceptions.RequestException as e:
     print(f"Request failed: {e}")
 
+print(Fore.GREEN + "BAŞARILI - GMT ve SİTA Verilerine Erişme")
 
+#endregion
 
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
+#region // GMT ve SİTA Verilerini Ana Tabloya Çektirme (Etopla Yapma)
 
 # sonuc_excel dosyasını oku
 sonuc_excel_file = "sonuc_excel.xlsx"
@@ -747,15 +671,11 @@ sonuc_df = sonuc_df.apply(match_and_update_with_code, axis=1)
 updated_excel_file = "sonuc_excel.xlsx"
 sonuc_df.to_excel(updated_excel_file, index=False)
 
+print(Fore.GREEN + "BAŞARILI - GMT ve SİTA Verilerini Ana Tabloya Çektirme")
 
+#endregion
 
-
-
-
-
-
-
-
+#region // Stok Adedi Sütunu İçin Etopla Yapma - Stok Adedi Her Şey Dahil ve Stok Adedi Site ve Vega Sütunlarını Oluşturma - Bazı Sütunların Adını Değiştirme
 
 # "sonuc_excel.xlsx" Excel dosyasını oku
 df_calisma_alani = pd.read_excel('sonuc_excel.xlsx')
@@ -787,12 +707,11 @@ df_calisma_alani['SİTA Stok Adedi'].fillna(0, inplace=True)
 updated_excel_file = "sonuc_excel.xlsx"
 df_calisma_alani.to_excel(updated_excel_file, index=False)
 
+print(Fore.GREEN + "BAŞARILI - Stok Adedi Sütunu İçin Etopla Yapma - Stok Adedi Her Şey Dahil ve Stok Adedi Site ve Vega Sütunlarını Oluşturma - Bazı Sütunların Adını Değiştirme")
 
+#endregion
 
-
-
-
-
+#region // MorhipoKodu Sütununun Adını Değiştirme ve Kaç Güne Biter Kısımlarını Hesaplama
 
 # "MorhipoKodu" sütununun adını değiştirme /Komplo orduların
 df_calisma_alani = df_calisma_alani.rename(columns={"MorhipoKodu": "Günlük Ortalama Satış Adedi"})
@@ -810,16 +729,11 @@ df_calisma_alani.loc[non_zero_mask, "Kaç Güne Biter Her Şey Dahil"] = round(d
 non_zero_mask = df_calisma_alani["Günlük Ortalama Satış Adedi"] != 0
 df_calisma_alani.loc[non_zero_mask, "Kaç Güne Biter Site ve Vega"] = round(df_calisma_alani["Stok Adedi Site ve Vega"] / df_calisma_alani["Günlük Ortalama Satış Adedi"])
 
+print(Fore.GREEN + "BAŞARILI - MorhipoKodu Sütununun Adını Değiştirme ve Kaç Güne Biter Kısımlarını Hesaplama")
 
+#endregion
 
-
-
-
-
-
-
-
-
+#region // Görüntülenmenin Satışa Dönüş Oranını Hesaplama
 
 # "Görüntülenmenin Satışa Dönüş Oranı" sütunu
 df_calisma_alani["Görüntülenmenin Satışa Dönüş Oranı"] = "0"  # Varsayılan değer olarak "Satış Yok" atanır
@@ -828,16 +742,14 @@ df_calisma_alani['Ortalama Görüntülenme Adedi'].fillna(0, inplace=True)
 non_zero_mask = df_calisma_alani["Ortalama Görüntülenme Adedi"] != 0
 df_calisma_alani.loc[non_zero_mask, "Görüntülenmenin Satışa Dönüş Oranı"] = round((df_calisma_alani["Günlük Ortalama Satış Adedi"] / df_calisma_alani["Ortalama Görüntülenme Adedi"]) * 100, 2)
 
-
-
 # Değişiklikleri kaydetmek için dosyayı yeniden yaz
 df_calisma_alani.to_excel("sonuc_excel.xlsx", index=False)
 
+print(Fore.GREEN + "BAŞARILI - Görüntülenmenin Satışa Dönüş Oranını Hesaplama")
 
+#endregion
 
-
-
-#region Satış Raporu Tarihini Düne Göre Ayarlama
+#region // Satış Raporu Tarihini Düne Göre Ayarlama
 
 # Excel dosyasının ismi ve konumu
 filename = "Satış Raporu.xlsx"
@@ -854,8 +766,16 @@ def is_file_downloaded_today(file_path):
 
 # Eğer dosya bugün indirilmemişse Selenium işlemleri çalıştırılır
 if not is_file_downloaded_today(filename):
+    # ChromeOptions ile gizli mod seçeneğini ayarla
+    options = Options()
+    options.add_argument("--headless")  # Tarayıcıyı ekranda göstermemek için
+    options.add_argument("--incognito")  # Gizli mod için bu parametre eklenir
+    options.add_argument("--disable-gpu")
+    options.add_argument("--no-sandbox")
+    options.add_argument("--disable-dev-shm-usage")
+
     # ChromeDriver'ı en son sürümüyle otomatik olarak indirip kullan
-    driver = webdriver.Chrome(service=Service(ChromeDriverManager().install()))
+    driver = webdriver.Chrome(service=Service(ChromeDriverManager().install()), options=options)
 
     login_url = "https://www.siparis.haydigiy.com/kullanici-giris/?ReturnUrl=%2Fadmin"
     driver.get(login_url)
@@ -893,9 +813,11 @@ if not is_file_downloaded_today(filename):
     # Selenium işlemleri tamamlandıktan sonra tarayıcıyı kapatın
     driver.quit()
 
+print(Fore.GREEN + "BAŞARILI - Sitedeki Satış Raporu Çıktısının Tarihini Dün Olarak Ayarlama")
+
 #endregion
 
-#region Satış Raporunu İndirme
+#region // Satış Raporunu İndirme
 
 # Excel dosyasının indirileceği URL
 url = "https://www.siparis.haydigiy.com/FaprikaOrderXls/GZPCKE/1/"
@@ -933,9 +855,11 @@ df = df[columns_to_keep]
 # Düzenlenmiş dosyayı aynı adla kaydet
 df.to_excel(filename, index=False)
 
+print(Fore.GREEN + "BAŞARILI - Satış Raporu İndirme")
+
 #endregion
 
-#region Adet Sütununu Sayıya Çevirme
+#region // Adet Sütununu Sayıya Çevirme
 
 def clean_adet(data):
     # "Adet" sütunundaki tüm verilerin virgül karakterinden sonrasını temizle
@@ -968,9 +892,11 @@ if __name__ == "__main__":
     # Güncellenmiş veriyi aynı dosyaya üstüne kaydet
     combined_data.to_excel(file_path, index=False, engine='openpyxl')
 
+print(Fore.GREEN + "BAŞARILI - Satış Raporu Düzenleme 1")
+
 #endregion
 
-#region ToplamFiyat Sütununu Sayıya Çevirme
+#region // ToplamFiyat Sütununu Sayıya Çevirme
 
 def clean_adet(data):
     # "Adet" sütunundaki tüm verilerin virgül karakterinden sonrasını temizle
@@ -1003,9 +929,11 @@ if __name__ == "__main__":
     # Güncellenmiş veriyi aynı dosyaya üstüne kaydet
     combined_data.to_excel(file_path, index=False, engine='openpyxl')
 
+print(Fore.GREEN + "BAŞARILI - Satış Raporu Düzenleme 2")
+
 #endregion
 
-#region Adet ve ToplamFiyat Sütununa ETOPLA yapma
+#region // Adet ve ToplamFiyat Sütununa ETOPLA yapma
 
 # Excel dosyasını tekrar okumak
 df = pd.read_excel("Satış Raporu.xlsx")
@@ -1019,9 +947,11 @@ df_grouped = df.groupby('UrunAdi', as_index=False).agg({
 # Düzenlenmiş dosyayı aynı adla kaydetmek
 df_grouped.to_excel("Satış Raporu.xlsx", index=False)
 
+print(Fore.GREEN + "BAŞARILI - Satış Raporu Düzenleme 3")
+
 #endregion
 
-#region Öne Çıkanlar Listesine Satış Adetleri Listesindeki Verileri Çektirme
+#region // Ana Listeye Veriyi Çektirme
 
 # Excel dosyalarını oku
 satis_raporu_df = pd.read_excel("Satış Raporu.xlsx")
@@ -1040,52 +970,11 @@ merged_df.rename(columns={'Adet': 'Dünün Satış Adedi'}, inplace=True)
 # Birleştirilmiş veriyi Öne Çıkanlar Excel dosyasına kaydedelim
 merged_df.to_excel("sonuc_excel.xlsx", index=False)
 
+print(Fore.GREEN + "BAŞARILI - Ana Tabloya Satış Adetlerini Çektime")
+
 #endregion
 
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
+#region // Sütunların Sırasını Değiştirme - Bazı Sütunların Adını Değiştirme
 
 # Excel dosyasını oku
 df_calisma_alani = pd.read_excel("sonuc_excel.xlsx")
@@ -1100,9 +989,20 @@ column_order = ["UrunAdi", "İnstagram Stok Adedi", "Stok Adedi Her Şey Dahil",
                 "AramaTerimleri", "Resim", "Kategori", "GMT Stok Adedi", "SİTA Stok Adedi", "Marka", "N11Kodu"]
 df_calisma_alani = df_calisma_alani[column_order]
 
+print(Fore.GREEN + "BAŞARILI - Sütunların Sırasını Değiştirme - Bazı Sütunların Adını Değiştirme")
+
+#endregion
+
+#region // Yenilenen Değerleri Kaldırma 
+
 # Tekrarlanan satırları silme
 df_calisma_alani = df_calisma_alani.drop_duplicates(subset=["UrunAdi"])
 
+print(Fore.GREEN + "BAŞARILI - Yenilenen Değerleri Kaldırma")
+
+#endregion
+
+#region // Resim Sütunu İçin .jpeg'den Sonrasını Kladırma ve Devamına .jpeg Ekleme
 
 # "Resim" sütunundaki ".jpeg" ifadesinden sonrasını temizleme ve ".jpeg" ekleme
 df_calisma_alani["Resim"] = df_calisma_alani["Resim"].str.replace(r"\.jpeg.*$", "", regex=True) + ".jpeg"
@@ -1110,16 +1010,27 @@ df_calisma_alani["Resim"] = df_calisma_alani["Resim"].str.replace(r"\.jpeg.*$", 
 # Resim bağlantılarını bir listeye kaydet
 links = df_calisma_alani["Resim"].tolist()
 
-
 # NaN değerlerini 0 ile değiştirme
 df_calisma_alani = df_calisma_alani.fillna(0)
 
 # inf değerlerini 0 ile değiştirme
 df_calisma_alani.replace([float('inf'), float('-inf')], 0, inplace=True)
 
+print(Fore.GREEN + "BAŞARILI - Resim Sütununu Ayarlama ve Köprü Verme")
+
+#endregion
+
+#region // AramaTerimleri Sütunundaki Tarihleri Ayıklama
+
 # "AramaTerimleri" sütunundaki tarihleri temizle
 date_pattern = r'(\d{1,2}\.\d{1,2}\.\d{4})'
 df_calisma_alani['AramaTerimleri'] = df_calisma_alani['AramaTerimleri'].apply(lambda x: re.search(date_pattern, str(x)).group(1) if re.search(date_pattern, str(x)) else None)
+
+print(Fore.GREEN + "BAŞARILI - AramaTerimleri Sütunundaki Tarihleri Ayıklama")
+
+#endregion
+
+#region // Bazı Sütunların Adını Güncelleme
 
 # "AramaTerimleri" sütununun adını "Resim Yüklenme Tarihi" olarak değiştirme
 df_calisma_alani.rename(columns={"AramaTerimleri": "Resim Yüklenme Tarihi"}, inplace=True)
@@ -1128,14 +1039,20 @@ df_calisma_alani.rename(columns={"SatisFiyati": "Satış Fiyatı"}, inplace=True
 df_calisma_alani.rename(columns={"UrunAdi": "Ürün Adı"}, inplace=True)
 df_calisma_alani.rename(columns={"N11Kodu": "Mevsim"}, inplace=True)
 
+print(Fore.GREEN + "BAŞARILI - Sütun İsimleri Güncelleme")
+
+#endregion
+
+#region // Resim Sütunuyla Alakalı Bir İşlem
+
 # "Resim" sütununu DataFrame'den kaldır
 df_calisma_alani.drop(columns=["Resim"], inplace=True)
 
+print(Fore.GREEN + "BAŞARILI - Resim Sütununu DataFrameden Kaldırma")
 
+#endregion
 
-
-
-
+#region // Sütunların Biçim Ayarları ve Bazı Ayarlamalar
 
 # Güncellenmiş DataFrame'i aynı Excel dosyasına yaz
 with pd.ExcelWriter('sonuc_excel.xlsx', engine='xlsxwriter') as writer:
@@ -1238,7 +1155,11 @@ excel_file_name = "sonuc_excel.xlsx"
 new_excel_file_name = "Nirvana.xlsx"
 os.rename(excel_file_name, new_excel_file_name)
 
+print(Fore.GREEN + "BAŞARILI - Sütunların Biçim Ayarları ve Diğer Ayarlamalar")
 
+#endregion
+
+#region // Gereksiz Excel Dosyalarını Silme
 
 # Eski dosyaları silme
 dosyalar = ["GMT ve SİTA.xlsx", "Satış Raporu.xlsx"]
@@ -1247,13 +1168,11 @@ for dosya in dosyalar:
     if os.path.exists(dosya):
         os.remove(dosya)
 
+print(Fore.GREEN + "BAŞARILI - Gereksiz Excel Dosyalarını Silme")
 
+#endregion
 
-
-
-
-
-
+#region // Sütunlara Açıklama Ekleme
 
 # Excel dosyasını yükle
 dosya_yolu = "Nirvana.xlsx"
@@ -1293,19 +1212,11 @@ workbook.save(dosya_yolu)
 del workbook
 gc.collect()
 
+print(Fore.GREEN + "BAŞARILI - Sütunlara Açıklama Ekleme")
 
+#endregion
 
-
-
-
-
-
-
-
-
-
-
-
+#region // Sigara Ürünleri Markadan Tespit Etme
 
 # Excel dosyasını yükle
 file_path = "Nirvana.xlsx"
@@ -1340,26 +1251,12 @@ sheet.delete_cols(marka_column)
 # Değişiklikleri kaydet
 workbook.save(file_path)
 
+print(Fore.GREEN + "BAŞARILI - Sigara Ürünleri Markadan Tespit Etme")
+
+#endregion
 
 
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-# KOPYA SAYFA
+#region // Kopya Sayfa Oluşturma
 
 
 # Nirvana.xlsx dosyasını yükle
@@ -1375,14 +1272,11 @@ if "Sheet1" in workbook.sheetnames:
 # Dosyayı kaydet
 workbook.save(dosya_adi)
 
+print(Fore.GREEN + "BAŞARILI - Kopya Sayfa Oluşturma")
 
+#endregion
 
-
-
-
-
-
-
+#region // Kar Yüzdesi Sütununu Hesaplama
 
 # Excel dosyasını yükle
 dosya_adi = "Nirvana.xlsx"
@@ -1437,16 +1331,11 @@ if kopya_sayfa_adi in workbook.sheetnames:
 # Değişiklikleri kaydet
 workbook.save(dosya_adi)
 
+print(Fore.GREEN + "BAŞARILI - Kar Yüzdesi Sütununu Hesaplama")
 
+#endregion
 
-
-
-
-
-
-
-
-
+#region // Liste Fiyatını Hesaplama
 
 # Excel dosyasını yükle
 dosya_adi = "Nirvana.xlsx"
@@ -1496,20 +1385,11 @@ if sheet_adi in workbook.sheetnames:
 # Değişiklikleri kaydet
 workbook.save(dosya_adi)
 
+print(Fore.GREEN + "BAŞARILI - Liste Fiyatı Hesaplama")
 
+#endregion
 
-
-
-
-
-
-
-
-
-
-
-
-
+#region // Satış Fiyatı Liste Fiyatının Altındaysa Alış Fiyatını Kırmızı Yapma
 
 # Excel dosyasını yükle
 dosya_adi = "Nirvana.xlsx"
@@ -1543,13 +1423,11 @@ if sheet_adi in workbook.sheetnames:
 # Değişiklikleri kaydet
 workbook.save(dosya_adi)
 
+print(Fore.GREEN + "BAŞARILI - Satış Fiyatı Liste Fiyatının Altındaysa Alış Fiyatını Kırmızı Yapma")
 
+#endregion
 
-
-
-
-
-
+#region // ListeFiyati2 Sütununu Silme
 
 # Excel dosyasını yükle
 dosya_adi = "Nirvana.xlsx"
@@ -1570,17 +1448,11 @@ if sheet_adi in workbook.sheetnames:
 # Değişiklikleri kaydet
 workbook.save(dosya_adi)
 
+print(Fore.GREEN + "BAŞARILI - ListeFiyati2 Sütununu Silme")
 
+#endregion
 
-
-
-
-
-
-
-
-
-
+#region // Belirli Sütunları Silme
 
 # Nirvana.xlsx dosyasını yükle
 dosya_adi = "Nirvana.xlsx"
@@ -1611,12 +1483,11 @@ if kopya_sayfa_adi in workbook.sheetnames:
 # Değişiklikleri kaydet
 workbook.save(dosya_adi)
 
+print(Fore.GREEN + "BAŞARILI - Belirli Sütunları Silme")
 
+#endregion
 
-
-
-
-
+#region // Sütunları Gizleme
 
 # Nirvana.xlsx dosyasını tekrar yükle
 workbook = openpyxl.load_workbook(dosya_adi)
@@ -1644,14 +1515,11 @@ if kopya_sayfa_adi in workbook.sheetnames:
 # Değişiklikleri kaydet
 workbook.save(dosya_adi)
 
+print(Fore.GREEN + "BAŞARILI - Sütunları Gizleme")
 
+#endregion
 
-
-
-
-
-
-
+#region // Kar Yüzdesi Sütununu Görünür Yapma
 
 # Nirvana.xlsx dosyasını yükle
 dosya_adi = "Nirvana.xlsx"
@@ -1673,12 +1541,11 @@ if kopya_sayfa_adi in workbook.sheetnames:
 # Değişiklikleri kaydet
 workbook.save(dosya_adi)
 
+print(Fore.GREEN + "BAŞARILI - Kar Yüzdesi Sütununu Görünür Yapma")
 
+#endregion
 
-
-
-
-
+#region // Sütunlara Filtreleme Özelliği Ekleme
 
 # Nirvana.xlsx dosyasını yükle
 dosya_adi = "Nirvana.xlsx"
@@ -1699,3 +1566,8 @@ if sheet_adi in workbook.sheetnames:
 
 # Değişiklikleri kaydet
 workbook.save(dosya_adi)
+
+print(Fore.GREEN + "BAŞARILI - Sütunlara Filtreleme Özelliği Ekleme")
+
+#endregion
+
