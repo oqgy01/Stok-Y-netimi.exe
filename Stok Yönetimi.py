@@ -675,7 +675,7 @@ print(Fore.GREEN + "BAŞARILI - GMT ve SİTA Verilerini Ana Tabloya Çektirme")
 
 #endregion
 
-#region // Stok Adedi Sütunu İçin Etopla Yapma - Stok Adedi Her Şey Dahil ve Stok Adedi Site ve Vega Sütunlarını Oluşturma - Bazı Sütunların Adını Değiştirme
+#region // Stok Adedi Sütunu İçin Etopla Yapma ve Diğer Ayarlar
 
 # "sonuc_excel.xlsx" Excel dosyasını oku
 df_calisma_alani = pd.read_excel('sonuc_excel.xlsx')
