@@ -1,3 +1,5 @@
+#region // Kütüphaneler
+
 #Doğrulama Kodu
 import requests
 from bs4 import BeautifulSoup
@@ -78,6 +80,8 @@ warnings.filterwarnings("ignore")
 pd.options.mode.chained_assignment = None
 init(autoreset=True)
 
+#endregion
+
 print(" ")
 print(Fore.GREEN + "Oturum Açma Başarılı Oldu")
 print(" /﹋\ ")
@@ -86,7 +90,15 @@ print(Fore.RED + "<,︻╦╤─ ҉ - -")
 print(" /﹋\ ")
 print("Mustafa ARI")
 
-#region // Entegrasyondan Önce mi Sonra mı Kontrolü
+#region // Entegrasyondan Önce mi Sonra mı Kontrolü ve Satış Raporu Tarihini Düne Göre Ayarlama
+
+from selenium import webdriver
+from selenium.webdriver.common.by import By
+from selenium.webdriver.chrome.service import Service
+from selenium.webdriver.chrome.options import Options
+from datetime import datetime, timedelta
+import time
+from colorama import Fore, Style
 
 # Gizli modda Chrome ayarları
 chrome_options = Options()
@@ -153,12 +165,36 @@ try:
         else:
             print(Fore.RED + "Dikkat Entegrasyondan Önceki Listeyi Çekiyorsunuz !" + Style.RESET_ALL)
 
+    # Belirttiğiniz sayfaya yönlendirme
+    desired_page_url = "https://www.siparis.haydigiy.com/admin/exportorder/edit/154/"
+    driver.get(desired_page_url)
+    time.sleep(2)
+
+    # Dünün tarihini al
+    yesterday = datetime.now() - timedelta(days=1)
+    formatted_date = yesterday.strftime("%d.%m.%Y")
+
+    # EndDate alanını bulma ve tarih girişini yapma
+    end_date_input = driver.find_element(By.ID, "EndDate")
+    end_date_input.clear()  # Eğer mevcut bir değer varsa temizleyin
+    end_date_input.send_keys(formatted_date)
+
+    # StartDate alanını bulma ve tarih girişini yapma
+    start_date_input = driver.find_element(By.ID, "StartDate")
+    start_date_input.clear()  # Eğer mevcut bir değer varsa temizleyin
+    start_date_input.send_keys(formatted_date)
+
+    # Kaydet butonunu bulma ve tıklama
+    save_button = driver.find_element(By.CSS_SELECTOR, 'button.btn.btn-primary[name="save"]')
+    save_button.click()
+
+    print(Fore.GREEN + "BAŞARILI - Sitedeki Satış Raporu Çıktısının Tarihini Dün Olarak Ayarlama")
+
 except Exception as e:
     print(Fore.RED + f"Hata oluştu: {e}" + Style.RESET_ALL)
 finally:
     # Tarayıcıyı kapat
     driver.quit()
-
 
 #endregion
 
@@ -675,7 +711,7 @@ print(Fore.GREEN + "BAŞARILI - GMT ve SİTA Verilerini Ana Tabloya Çektirme")
 
 #endregion
 
-#region // Stok Adedi Sütunu İçin Etopla Yapma ve Diğer Ayarlar
+#region // Stok Adedi Sütunu İçin Etopla Yapma - Stok Adedi Her Şey Dahil ve Stok Adedi Site ve Vega Sütunlarını Oluşturma - Bazı Sütunların Adını Değiştirme
 
 # "sonuc_excel.xlsx" Excel dosyasını oku
 df_calisma_alani = pd.read_excel('sonuc_excel.xlsx')
@@ -746,74 +782,6 @@ df_calisma_alani.loc[non_zero_mask, "Görüntülenmenin Satışa Dönüş Oranı
 df_calisma_alani.to_excel("sonuc_excel.xlsx", index=False)
 
 print(Fore.GREEN + "BAŞARILI - Görüntülenmenin Satışa Dönüş Oranını Hesaplama")
-
-#endregion
-
-#region // Satış Raporu Tarihini Düne Göre Ayarlama
-
-# Excel dosyasının ismi ve konumu
-filename = "Satış Raporu.xlsx"
-
-# Dosyanın indirilme tarihini kontrol eden fonksiyon
-def is_file_downloaded_today(file_path):
-    if os.path.exists(file_path):
-        # Dosyanın son değiştirilme tarihini al
-        file_modification_time = os.path.getmtime(file_path)
-        modification_date = datetime.fromtimestamp(file_modification_time).date()
-        # Bugünün tarihi ile karşılaştır
-        return modification_date == datetime.today().date()
-    return False
-
-# Eğer dosya bugün indirilmemişse Selenium işlemleri çalıştırılır
-if not is_file_downloaded_today(filename):
-    # ChromeOptions ile gizli mod seçeneğini ayarla
-    options = Options()
-    options.add_argument("--headless")  # Tarayıcıyı ekranda göstermemek için
-    options.add_argument("--incognito")  # Gizli mod için bu parametre eklenir
-    options.add_argument("--disable-gpu")
-    options.add_argument("--no-sandbox")
-    options.add_argument("--disable-dev-shm-usage")
-
-    # ChromeDriver'ı en son sürümüyle otomatik olarak indirip kullan
-    driver = webdriver.Chrome(service=Service(ChromeDriverManager().install()), options=options)
-
-    login_url = "https://www.siparis.haydigiy.com/kullanici-giris/?ReturnUrl=%2Fadmin"
-    driver.get(login_url)
-
-    # Giriş bilgilerini doldurma
-    email_input = driver.find_element("id", "EmailOrPhone")
-    email_input.send_keys("mustafa_kod@haydigiy.com")
-
-    password_input = driver.find_element("id", "Password")
-    password_input.send_keys("123456")
-    password_input.send_keys(Keys.RETURN)
-
-    # Belirttiğiniz sayfaya yönlendirme
-    desired_page_url = "https://www.siparis.haydigiy.com/admin/exportorder/edit/154/"
-    driver.get(desired_page_url)
-
-    # Dünün tarihini al
-    yesterday = datetime.now() - timedelta(days=1)
-    formatted_date = yesterday.strftime("%d.%m.%Y")
-
-    # EndDate alanını bulma ve tarih girişini yapma
-    end_date_input = driver.find_element("id", "EndDate")
-    end_date_input.clear()  # Eğer mevcut bir değer varsa temizleyin
-    end_date_input.send_keys(formatted_date)
-
-    # StartDate alanını bulma ve tarih girişini yapma
-    start_date_input = driver.find_element("id", "StartDate")
-    start_date_input.clear()  # Eğer mevcut bir değer varsa temizleyin
-    start_date_input.send_keys(formatted_date)
-
-    # Kaydet butonunu bulma ve tıklama
-    save_button = driver.find_element("css selector", 'button.btn.btn-primary[name="save"]')
-    save_button.click()
-
-    # Selenium işlemleri tamamlandıktan sonra tarayıcıyı kapatın
-    driver.quit()
-
-print(Fore.GREEN + "BAŞARILI - Sitedeki Satış Raporu Çıktısının Tarihini Dün Olarak Ayarlama")
 
 #endregion
 
@@ -1257,7 +1225,6 @@ print(Fore.GREEN + "BAŞARILI - Sigara Ürünleri Markadan Tespit Etme")
 
 
 #region // Kopya Sayfa Oluşturma
-
 
 # Nirvana.xlsx dosyasını yükle
 dosya_adi = "Nirvana.xlsx"
