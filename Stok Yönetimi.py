@@ -130,8 +130,8 @@ username = "mustafa_kod@haydigiy.com"
 password = "123456"
 
 # URL'ler
-login_url = "https://task.haydigiy.com/kullanici-giris/?ReturnUrl=%2Fadmin"
-product_list_url = "https://task.haydigiy.com/admin/product/list/"
+login_url = "https://www.siparis.haydigiy.com/kullanici-giris/?ReturnUrl=%2Fadmin"
+product_list_url = "https://www.siparis.haydigiy.com/admin/product/list/"
 
 try:
     # Giriş sayfasına git
@@ -177,7 +177,7 @@ try:
             print(Fore.RED + "Dikkat Entegrasyondan Önceki Listeyi Çekiyorsunuz !" + Style.RESET_ALL)
 
     # Belirttiğiniz sayfaya yönlendirme
-    desired_page_url = "https://task.haydigiy.com/admin/exportorder/edit/154/"
+    desired_page_url = "https://www.siparis.haydigiy.com/admin/exportorder/edit/154/"
     driver.get(desired_page_url)
     time.sleep(2)
 
