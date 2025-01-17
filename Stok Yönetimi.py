@@ -130,8 +130,8 @@ username = "mustafa_kod@haydigiy.com"
 password = "123456"
 
 # URL'ler
-login_url = "https://www.siparis.haydigiy.com/kullanici-giris/?ReturnUrl=%2Fadmin"
-product_list_url = "https://www.siparis.haydigiy.com/admin/product/list/"
+login_url = "https://task.haydigiy.com/kullanici-giris/?ReturnUrl=%2Fadmin"
+product_list_url = "https://task.haydigiy.com/admin/product/list/"
 
 try:
     # Giriş sayfasına git
@@ -177,7 +177,7 @@ try:
             print(Fore.RED + "Dikkat Entegrasyondan Önceki Listeyi Çekiyorsunuz !" + Style.RESET_ALL)
 
     # Belirttiğiniz sayfaya yönlendirme
-    desired_page_url = "https://www.siparis.haydigiy.com/admin/exportorder/edit/154/"
+    desired_page_url = "https://task.haydigiy.com/admin/exportorder/edit/154/"
     driver.get(desired_page_url)
     time.sleep(2)
 
@@ -209,7 +209,7 @@ finally:
 
 #region // Seçim Yapma Alanı
 
-etiket_secimi = input("Sadece Etiketli Ürünleri mi Çekmek İstiyorsunuz (E/H): ").strip().upper()
+etiket_secimi = input("Sadece Sigara Ürünleri mi Çekmek İstiyorsunuz (E/H): ").strip().upper()
 
 # Kullanıcıdan seçim yapılması
 secim = input(Fore.YELLOW + "\n1. Firma Kodu Bazlı\n2. Ürün Adında Geçen Bir Kelime ya da Kısım\n3. Kumaş Bazlı\n4. Kalıp Bazlı\n5. Kategori Bazlı" + Fore.LIGHTCYAN_EX + "\n6. 1-3 Arası Aktif Ürünler\n7. Raf Ömrü Girme" + Fore.WHITE + "\nSeçim: ")
@@ -238,7 +238,7 @@ elif secim == "6":
 
 
     # Excel dosyasını indir
-    url = "https://www.siparis.haydigiy.com/FaprikaXls/ODJC6P/1/"
+    url = "https://task.haydigiy.com/FaprikaXls/ODJC6P/1/"
     response = requests.get(url)
 
     if response.status_code == 200:
@@ -346,11 +346,11 @@ elif secim == "7":
                 return None
 
         # İlk linkten veriyi al
-        url1 = "https://www.siparis.haydigiy.com/FaprikaXls/Q07PJA/1/"
+        url1 = "https://task.haydigiy.com/FaprikaXls/Q07PJA/1/"
         data1 = get_excel_data(url1)
 
         # İkinci linkten veriyi al
-        url2 = "https://www.siparis.haydigiy.com/FaprikaXls/Q07PJA/2/"
+        url2 = "https://task.haydigiy.com/FaprikaXls/Q07PJA/2/"
         data2 = get_excel_data(url2)
 
         # İki veriyi birleştir
@@ -375,7 +375,7 @@ elif secim == "7":
 
 
         # XML'den Ürün Bilgilerini Çekme ve Temizleme
-        xml_url = "https://www.siparis.haydigiy.com/FaprikaXml/SDDI3V/1/"
+        xml_url = "https://task.haydigiy.com/FaprikaXml/SDDI3V/1/"
         response = requests.get(xml_url)
         xml_data = response.text
         soup = BeautifulSoup(xml_data, 'xml')
@@ -528,12 +528,14 @@ else:
 
 # İndirilecek linkler
 if etiket_secimi == "E":
-    links = ["https://www.siparis.haydigiy.com/FaprikaXls/B0JC0W/1/"]
+    links = ["https://task.haydigiy.com/FaprikaXls/B0JC0W/1/"]
 else:
     links = [
-        "https://www.siparis.haydigiy.com/FaprikaXls/ZIMVGV/1/",
-        "https://www.siparis.haydigiy.com/FaprikaXls/ZIMVGV/2/",
-        "https://www.siparis.haydigiy.com/FaprikaXls/ZIMVGV/3/"
+        "https://task.haydigiy.com/FaprikaXls/ZIMVGV/1/",
+        "https://task.haydigiy.com/FaprikaXls/ZIMVGV/2/",
+        "https://task.haydigiy.com/FaprikaXls/ZIMVGV/3/"
+
+
     ]
 
 # Excel dosyalarını indirip birleştirme
@@ -821,7 +823,7 @@ print(Fore.GREEN + "BAŞARILI - Görüntülenmenin Satışa Dönüş Oranını H
 #region // Satış Raporunu İndirme
 
 # Excel dosyasının indirileceği URL
-url = "https://www.siparis.haydigiy.com/FaprikaOrderXls/GZPCKE/1/"
+url = "https://task.haydigiy.com/FaprikaOrderXls/GZPCKE/1/"
 filename = "Satış Raporu.xlsx"
 
 # Dosyanın indirilme tarihini kontrol etmek için fonksiyon
