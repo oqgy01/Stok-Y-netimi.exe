@@ -212,7 +212,7 @@ finally:
 etiket_secimi = input("Sadece Sigara Ürünleri mi Çekmek İstiyorsunuz (E/H): ").strip().upper()
 
 # Kullanıcıdan seçim yapılması
-secim = input(Fore.YELLOW + "\n1. Firma Kodu Bazlı\n2. Ürün Adında Geçen Bir Kelime ya da Kısım\n3. Kumaş Bazlı\n4. Kalıp Bazlı\n5. Kategori Bazlı" + Fore.LIGHTCYAN_EX + "\n6. 1-3 Arası Aktif Ürünler\n7. Raf Ömrü Girme" + Fore.WHITE + "\nSeçim: ")
+secim = input(Fore.YELLOW + "\n1. Firma Kodu Bazlı\n2. Ürün Adında Geçen Bir Kelime ya da Kısım\n3. Kumaş Bazlı\n4. Kalıp Bazlı\n5. Kategori Bazlı" + Fore.LIGHTCYAN_EX + "\n6. 1-3 Arası Aktif Ürünler\n7. Raf Ömrü Girme\n8. Etiketleri Girme" + Fore.WHITE + "\nSeçim: ")
 
 if secim == "1":
     kolon_adi = "UrunAdi"
@@ -517,6 +517,74 @@ elif secim == "7":
 
     exit()
 
+
+#endregion
+
+#region // Seçim 8 (Etiket Girme)
+
+elif secim == "8":
+
+    # İndirilecek dosyanın URL'si
+    url = "https://drive.usercontent.google.com/u/0/uc?id=1k0F9qUAc9YC09su3THqHZSbIXOy2kgzj&export=download"
+
+    # Dosya adını tarih ve "Etiketler" ile belirleme
+    today = datetime.now().strftime("%d.%m.%Y")
+    file_name = "Etiketler.xlsx"
+
+    # İstek gönderip dosyayı indirme
+    with open(file_name, "wb") as file:
+        file.write(requests.get(url).content)
+
+    # İndirilecek linkler
+    links = [
+        "https://task.haydigiy.com/FaprikaXls/NVWVZB/1/",
+        "https://task.haydigiy.com/FaprikaXls/NVWVZB/2/",
+        "https://task.haydigiy.com/FaprikaXls/NVWVZB/3/"
+    ]
+
+    # Excel dosyalarını indirip birleştirme
+    dfs = [pd.read_excel(BytesIO(requests.get(link).content)) for link in links]
+
+    # Tüm dosyaları birleştirme
+    merged_df = pd.concat(dfs, ignore_index=True)
+
+    # Sonuç DataFrame'i tek bir Excel dosyasına yazma
+    merged_df.to_excel("birlesmis_excel.xlsx", index=False)
+
+    # Dosyaların yolları
+    birlesmis_excel_path = "birlesmis_excel.xlsx"
+    etiketler_excel_path = "Etiketler.xlsx"
+
+    # Dosya adını tarih ve "Etiketler" ile belirleme
+    today = datetime.now().strftime("%d.%m.%Y")
+    etiketler_file_name = f"{today} Etiketler.xlsx"
+
+    # Excel dosyalarını yükleme
+    birlesmis_wb = load_workbook(birlesmis_excel_path)
+    etiketler_wb = load_workbook(etiketler_excel_path)
+
+    # İlgili sayfaları seçme
+    birlesmis_ws = birlesmis_wb.active  # Birleşmiş Excel'in ilk sayfası
+    etiketler_ws = etiketler_wb["İşleme Alanı"]  # Etiketler Excel'indeki "İşleme Alanı" sayfası
+
+    # Birleşmiş Excel dosyasındaki A, F, R, P sütunlarını al
+    birlesmis_a_column = [cell.value for cell in birlesmis_ws['A']]  # A sütunu
+    birlesmis_f_column = [cell.value for cell in birlesmis_ws['F']]  # F sütunu
+    birlesmis_r_column = [cell.value for cell in birlesmis_ws['R']]  # R sütunu
+    birlesmis_p_column = [cell.value for cell in birlesmis_ws['P']]  # P sütunu
+
+    # Etiketler dosyasındaki B, G, S, Q sütunlarına verileri olduğu gibi yapıştırma
+    for i in range(len(birlesmis_a_column)):
+        etiketler_ws.cell(row=i+1, column=2, value=birlesmis_a_column[i])  # B sütunu
+        etiketler_ws.cell(row=i+1, column=7, value=birlesmis_f_column[i])  # G sütunu
+        etiketler_ws.cell(row=i+1, column=19, value=birlesmis_r_column[i])  # S sütunu
+        etiketler_ws.cell(row=i+1, column=17, value=birlesmis_p_column[i])  # Q sütunu
+
+    # Yeni Excel dosyasını kaydetme
+    etiketler_wb.save(etiketler_file_name)
+
+    # Birleşmiş Excel dosyasını silme
+    os.remove(birlesmis_excel_path)
 
 else:
     print("Geçersiz seçim.")
