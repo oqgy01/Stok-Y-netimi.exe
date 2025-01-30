@@ -212,7 +212,7 @@ finally:
 etiket_secimi = input("Sadece Sigara Ürünleri mi Çekmek İstiyorsunuz (E/H): ").strip().upper()
 
 # Kullanıcıdan seçim yapılması
-secim = input(Fore.YELLOW + "\n1. Firma Kodu Bazlı\n2. Ürün Adında Geçen Bir Kelime ya da Kısım\n3. Kumaş Bazlı\n4. Kalıp Bazlı\n5. Kategori Bazlı" + Fore.LIGHTCYAN_EX + "\n6. 1-3 Arası Aktif Ürünler\n7. Raf Ömrü Girme\n8. Etiketleri Girme" + Fore.WHITE + "\nSeçim: ")
+secim = input(Fore.YELLOW + "\n1. Firma Kodu Bazlı\n2. Ürün Adında Geçen Bir Kelime ya da Kısım\n3. Kumaş Bazlı\n4. Kalıp Bazlı\n5. Kategori Bazlı" + Fore.LIGHTCYAN_EX + "\n6. 1-3 Arası Aktif Ürünler\n7. Raf Ömrü Girme\n8. Etiketleri Girme\n9. Sadeleştirilmiş Kategori Raporu" + Fore.WHITE + "\nSeçim: ")
 
 if secim == "1":
     kolon_adi = "UrunAdi"
@@ -585,6 +585,200 @@ elif secim == "8":
 
     # Birleşmiş Excel dosyasını silme
     os.remove(birlesmis_excel_path)
+
+
+    exit()
+
+#endregion
+
+#region // Seçim 9 (Sadeleştrilimiş Kategori Raporu)
+
+elif secim == "9":
+
+    # Google Sheet URL (CSV formatında indirme bağlantısı)
+    google_sheet_url = "https://docs.google.com/spreadsheets/d/1AfTzgMZTR9bpnH8d1-9fOw06wZRyUK3Lf-BBZjnNSZU/export?format=csv&gid=485735906"
+
+    # CSV dosyasını oku
+    google_df = pd.read_csv(google_sheet_url)
+
+    # Tutmak istediğiniz sütunların listesi
+    columns_to_keep = [
+        "KATEGORİ",
+        "TOPLAM SATIŞ ADETİ",
+        "KATEGORİ KALEM ADEDİ 10 ADET VE ÜSTÜ",
+        "Kare Başarısı",
+        "SADECE SİTE KAÇ GÜNE BİTER",
+        "Herşey Dahil Kaç Güne Biter",
+        "GMT Satışta Olmayan Kare Sayısı",
+        "SİTA Satışta Olmayan Kare Sayısı",
+        "DEPO Satışta Olmayan Kare Sayısı",
+        "KAR ORAN YÜZDESİ"
+    ]
+
+    # Sadece belirtilen sütunları seç
+    google_df = google_df[columns_to_keep]
+
+    # "TOPLAM SATIŞ ADETİ" sütununda ilk boş hücreyi bul ve o hücreden sonraki satırları sil
+    # Bu adımı pandas ile yapmak daha verimli olacaktır
+    # İlk boş hücreyi bulmak için 'isna' veya boş string kontrolü yapabiliriz
+
+    # Öncelikle, boş hücreleri NaN olarak kabul edelim
+    google_df['TOPLAM SATIŞ ADETİ'] = google_df['TOPLAM SATIŞ ADETİ'].replace('', pd.NA)
+
+    # İlk boş hücreyi bul
+    first_empty_index = google_df['TOPLAM SATIŞ ADETİ'].isna().idxmax()
+
+    # Eğer ilk satır boşsa tüm veri silinecektir, bunu önlemek için kontrol edelim
+    if pd.isna(google_df.loc[first_empty_index, 'TOPLAM SATIŞ ADETİ']):
+        # Veriyi ilk boş hücreye kadar kes
+        google_df = google_df.iloc[:first_empty_index]
+    else:
+        # Hiç boş hücre yoksa tüm veri korunur
+        pass
+
+    # Excel dosyasına kaydet
+    excel_file = "Sadeleştirilmiş Kategori Raporu.xlsx"
+    google_df.to_excel(excel_file, index=False)
+
+    # ### Stil Değişiklikleri İçin openpyxl Kullanımı ###
+
+    # Excel dosyasını aç
+    wb = load_workbook(excel_file)
+    ws = wb.active
+
+    # 1. B:J arasındaki tüm verilerin tamamını sayıya çevirme
+    # B:J sütunları Excel'de 2:10 sütun numaralarına karşılık gelir
+    for row in ws.iter_rows(min_row=2, min_col=2, max_col=10):
+        for cell in row:
+            if cell.value is not None:
+                try:
+                    # Hücredeki değeri string'e çevir ve noktaları kaldır (örn: "1.234" -> "1234")
+                    # Türkiye'de sayılar genellikle "1.234,56" şeklinde yazılır, bu nedenle önce noktaları kaldırıp virgülleri noktaya çevirmeliyiz
+                    if isinstance(cell.value, str):
+                        value_str = cell.value.replace('.', '').replace(',', '.')
+                    else:
+                        value_str = str(cell.value)
+                    # Tam sayı veya ondalıklı sayıya çevir
+                    if '.' in value_str:
+                        cell.value = float(value_str)
+                    else:
+                        cell.value = int(value_str)
+                except ValueError:
+                    # Eğer sayıya çevrilemiyorsa olduğu gibi bırak
+                    pass
+
+    # 2. A:J arasındaki hücrelere metni kaydırma, font ayarları ve hizalama uygulama
+    # Fontu 16 yapma ve kalınlaştırma
+    # Verileri hem yatay hem de dikey olarak ortalama
+
+    # Alignment ve Font tanımlamaları
+    cell_alignment = Alignment(wrap_text=True, horizontal='center', vertical='center')
+    cell_font = Font(size=16, bold=True)
+
+    for row in ws.iter_rows(min_row=1, max_row=ws.max_row, min_col=1, max_col=10):
+        for cell in row:
+            cell.alignment = cell_alignment
+            cell.font = cell_font
+
+    # 3. Sütun genişliklerini 33 olarak ayarlama
+    for col in range(1, 11):  # Sütun A (1) ile J (10)
+        column_letter = get_column_letter(col)
+        ws.column_dimensions[column_letter].width = 22
+
+    # 4. Satır yüksekliklerini ayarlama
+    # İlk satırın yüksekliğini 93
+    ws.row_dimensions[1].height = 93
+
+    # Diğer tüm satırların yüksekliğini 42
+    for row in range(2, ws.max_row + 1):
+        ws.row_dimensions[row].height = 42
+
+    # 5. İlk satırı dondurma
+    ws.freeze_panes = ws['A2']  # A2 hücresi seçilerek ilk satır dondurulur
+
+    # 6. Belirli sütunların başlık ve veri hücrelerine özel arka plan ve yazı renkleri uygulama
+
+    # Fonksiyon: Belirli bir sütunun harfini bulma
+    def get_column_letter_by_header(ws, header_name):
+        for cell in ws[1]:
+            if cell.value == header_name:
+                return cell.column_letter
+        return None
+
+    # a. "KATEGORİ  KARE BAŞARISI" olan sütunun arka plan rengini #F4B084 yapma
+    kare_basarisi_col = get_column_letter_by_header(ws, "KATEGORİ  KARE BAŞARISI")
+    if kare_basarisi_col:
+        fill_color_kare = PatternFill(start_color='F4B084', end_color='F4B084', fill_type='solid')
+        for row in ws.iter_rows(min_row=1, max_row=ws.max_row, min_col=ws[kare_basarisi_col + '1'].column, max_col=ws[kare_basarisi_col + '1'].column):
+            for cell in row:
+                cell.fill = fill_color_kare
+
+    # b. "Herşey Dahil Kaç Güne Biter" sütununun sadece başlık hücresini siyah yapma ve yazı rengini #FFE699
+    hersey_dahil_col = get_column_letter_by_header(ws, "Herşey Dahil Kaç Güne Biter")
+    if hersey_dahil_col:
+        # Başlık hücresi
+        header_cell = ws[f"{hersey_dahil_col}1"]
+        header_cell.fill = PatternFill(start_color='000000', end_color='000000', fill_type='solid')  # Siyah
+        header_cell.font = Font(color='FFE699', size=16, bold=True)
+        # Veri hücreleri için ek bir formatlama yok
+
+    # c. "GMT Satışta Olmayan Kare Sayısı", "SİTA Satışta Olmayan Kare Sayısı", "DEPO Satışta Olmayan Kare Sayısı" sütunlarının başlık hücrelerini #548235 yapma ve yazı rengini beyaz
+    # ve başlık hariç diğer verilerin arka plan rengini #ED7D31 yapma
+    sütun_adlari = [
+        "GMT Satışta Olmayan Kare Sayısı",
+        "SİTA Satışta Olmayan Kare Sayısı",
+        "DEPO Satışta Olmayan Kare Sayısı"
+    ]
+
+    for sütun in sütun_adlari:
+        col_letter = get_column_letter_by_header(ws, sütun)
+        if col_letter:
+            # Başlık hücresi
+            header_cell = ws[f"{col_letter}1"]
+            header_cell.fill = PatternFill(start_color='548235', end_color='548235', fill_type='solid')
+            header_cell.font = Font(color='FFFFFF', size=16, bold=True)  # Beyaz yazı
+            # Veri hücreleri
+            fill_color_veri = PatternFill(start_color='ED7D31', end_color='ED7D31', fill_type='solid')
+            for row in ws.iter_rows(min_row=2, max_row=ws.max_row, min_col=ws[col_letter + '1'].column, max_col=ws[col_letter + '1'].column):
+                for cell in row:
+                    cell.fill = fill_color_veri
+
+    # d. "KAR ORAN YÜZDESİ" sütununun sadece başlık kısmının arka plan rengini kırmızı yapma ve yazı rengini beyaz
+    # ve bu sütunda geriye kalan verilerin de arka plan rengini sarı yapma
+    kar_oran_col = get_column_letter_by_header(ws, "KAR ORAN YÜZDESİ")
+    if kar_oran_col:
+        # Başlık hücresi
+        header_cell = ws[f"{kar_oran_col}1"]
+        header_cell.fill = PatternFill(start_color='FF0000', end_color='FF0000', fill_type='solid')  # Kırmızı
+        header_cell.font = Font(color='FFFFFF', size=16, bold=True)  # Beyaz yazı
+        # Veri hücreleri
+        fill_color_kar_veri = PatternFill(start_color='FFFF00', end_color='FFFF00', fill_type='solid')  # Sarı
+        for row in ws.iter_rows(min_row=2, max_row=ws.max_row, min_col=ws[kar_oran_col + '1'].column, max_col=ws[kar_oran_col + '1'].column):
+            for cell in row:
+                cell.fill = fill_color_kar_veri
+
+    # 7. Tabloyu biçimlendirme (Beyaz tablo stili açık 1)
+    # Excel'de tablo stil isimleri İngilizce'dir. "Beyaz tablo stili açık 1" için muhtemelen "TableStyleMedium9" uygun olacaktır.
+    table_ref = f"A1:{get_column_letter(10)}{ws.max_row}"
+    tablo = Table(displayName="KategoriTablo", ref=table_ref)
+
+    # Tablo stilini tanımla
+    table_style = TableStyleInfo(name="TableStyleMedium9", showFirstColumn=False,
+                                showLastColumn=False, showRowStripes=True, showColumnStripes=False)
+    tablo.tableStyleInfo = table_style
+
+    # Tabloyu çalışma sayfasına ekle
+    # Önce tabloyu silmek gerekebilir, eğer daha önce eklenmişse
+    if "KategoriTablo" in ws.tables:
+        del ws.tables["KategoriTablo"]
+    ws.add_table(tablo)
+
+    # 8. Sayfa görünümünü %85'e ayarlama
+    ws.sheet_view.zoomScale = 85
+
+    # Excel dosyasını kaydet
+    wb.save(excel_file)
+
 
 else:
     print("Geçersiz seçim.")
