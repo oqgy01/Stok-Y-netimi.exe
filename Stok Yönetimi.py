@@ -77,6 +77,8 @@ from selenium.webdriver.chrome.options import Options
 from copy import copy
 from openpyxl.styles import PatternFill
 import sys
+import win32com.client as win32
+import gdown
 warnings.filterwarnings("ignore")
 pd.options.mode.chained_assignment = None
 init(autoreset=True)
@@ -110,6 +112,17 @@ from selenium.webdriver.chrome.options import Options
 from datetime import datetime, timedelta
 import time
 from colorama import Fore, Style
+
+from selenium import webdriver
+from selenium.webdriver.common.by import By
+from selenium.webdriver.chrome.service import Service
+from selenium.webdriver.chrome.options import Options
+import time
+from datetime import datetime, timedelta
+import colorama
+from colorama import Fore, Style
+
+colorama.init(autoreset=True)
 
 # Gizli modda Chrome ayarları
 chrome_options = Options()
@@ -148,9 +161,10 @@ try:
     driver.get(product_list_url)
     time.sleep(5)  # Sayfanın tamamen yüklenmesini bekleyin
 
-    # Bugünün tarihini alın
-    current_date = datetime.now().strftime("%d.%m.%Y")
-    current_date_single_digit = f"{datetime.now().day}.{datetime.now().strftime('%m.%Y')}"  # Tek basamaklı gün formatı
+    # Bugünün tarihini, gün ve ay için başında sıfır olmadan alalım
+    now = datetime.now()
+    # Örn: "1.1.2024" veya "10.2.2025"
+    current_date_no_leading = f"{now.day}.{now.month}.{now.year}"
 
     # Dinamik yüklenen ürün verilerini çek
     rows = driver.find_elements(By.CSS_SELECTOR, "tr[data-uid]")
@@ -164,11 +178,11 @@ try:
         for row in rows:
             # Tarih hücresini bulun (5. sütun)
             date_cell = row.find_elements(By.TAG_NAME, "td")[4].text.strip()
-
-            # Çift basamaklı ve tek basamaklı gün kontrolü
-            if current_date in date_cell or current_date_single_digit in date_cell:
+            
+            # Eğer hücrede bugünün tarihi varsa
+            if current_date_no_leading in date_cell:
                 contains_today = True
-                break  # Bugünün tarihi bulunduysa döngüyü durdur
+                break
 
         # Bayrağa göre mesaj yazdır
         if contains_today:
@@ -181,19 +195,20 @@ try:
     driver.get(desired_page_url)
     time.sleep(2)
 
-    # Dünün tarihini al
+    # Dünün tarihini de aynı şekilde sıfırsız formatta alalım
     yesterday = datetime.now() - timedelta(days=1)
-    formatted_date = yesterday.strftime("%d.%m.%Y")
+    # Örn: "31.1.2024"
+    formatted_date_no_leading = f"{yesterday.day}.{yesterday.month}.{yesterday.year}"
 
     # EndDate alanını bulma ve tarih girişini yapma
     end_date_input = driver.find_element(By.ID, "EndDate")
-    end_date_input.clear()  # Eğer mevcut bir değer varsa temizleyin
-    end_date_input.send_keys(formatted_date)
+    end_date_input.clear()
+    end_date_input.send_keys(formatted_date_no_leading)
 
     # StartDate alanını bulma ve tarih girişini yapma
     start_date_input = driver.find_element(By.ID, "StartDate")
-    start_date_input.clear()  # Eğer mevcut bir değer varsa temizleyin
-    start_date_input.send_keys(formatted_date)
+    start_date_input.clear()
+    start_date_input.send_keys(formatted_date_no_leading)
 
     # Kaydet butonunu bulma ve tıklama
     save_button = driver.find_element(By.CSS_SELECTOR, 'button.btn.btn-primary[name="save"]')
@@ -204,6 +219,7 @@ except Exception as e:
 finally:
     # Tarayıcıyı kapat
     driver.quit()
+
 
 #endregion
 
@@ -238,7 +254,7 @@ elif secim == "6":
 
 
     # Excel dosyasını indir
-    url = "https://task.haydigiy.com/FaprikaXls/ODJC6P/1/"
+    url = "https://www.siparis.haydigiy.com/FaprikaXls/ODJC6P/1/"
     response = requests.get(url)
 
     if response.status_code == 200:
@@ -346,11 +362,11 @@ elif secim == "7":
                 return None
 
         # İlk linkten veriyi al
-        url1 = "https://task.haydigiy.com/FaprikaXls/Q07PJA/1/"
+        url1 = "https://www.siparis.haydigiy.com/FaprikaXls/Q07PJA/1/"
         data1 = get_excel_data(url1)
 
         # İkinci linkten veriyi al
-        url2 = "https://task.haydigiy.com/FaprikaXls/Q07PJA/2/"
+        url2 = "https://www.siparis.haydigiy.com/FaprikaXls/Q07PJA/2/"
         data2 = get_excel_data(url2)
 
         # İki veriyi birleştir
@@ -375,7 +391,7 @@ elif secim == "7":
 
 
         # XML'den Ürün Bilgilerini Çekme ve Temizleme
-        xml_url = "https://task.haydigiy.com/FaprikaXml/SDDI3V/1/"
+        xml_url = "https://www.siparis.haydigiy.com/FaprikaXml/SDDI3V/1/"
         response = requests.get(xml_url)
         xml_data = response.text
         soup = BeautifulSoup(xml_data, 'xml')
@@ -537,9 +553,9 @@ elif secim == "8":
 
     # İndirilecek linkler
     links = [
-        "https://task.haydigiy.com/FaprikaXls/NVWVZB/1/",
-        "https://task.haydigiy.com/FaprikaXls/NVWVZB/2/",
-        "https://task.haydigiy.com/FaprikaXls/NVWVZB/3/"
+        "https://www.siparis.haydigiy.com/FaprikaXls/NVWVZB/1/",
+        "https://www.siparis.haydigiy.com/FaprikaXls/NVWVZB/2/",
+        "https://www.siparis.haydigiy.com/FaprikaXls/NVWVZB/3/"
     ]
 
     # Excel dosyalarını indirip birleştirme
@@ -595,189 +611,171 @@ elif secim == "8":
 
 elif secim == "9":
 
-    # Google Sheet URL (CSV formatında indirme bağlantısı)
+    # 1. Google Sheet'ten veriyi indir ve Excel'e kaydet
     google_sheet_url = "https://docs.google.com/spreadsheets/d/1AfTzgMZTR9bpnH8d1-9fOw06wZRyUK3Lf-BBZjnNSZU/export?format=csv&gid=485735906"
+    try:
+        google_df = pd.read_csv(google_sheet_url)
+        report_excel_file = "Veri 1.xlsx"
+        google_df.to_excel(report_excel_file, index=False)
+    except Exception as e:
+        print(f"Google Sheets'ten veri indirilirken veya Excel'e kaydedilirken hata oluştu: {e}")
+        exit()
 
-    # CSV dosyasını oku
-    google_df = pd.read_csv(google_sheet_url)
+    # 2. Google Drive'dan ikinci Excel dosyasını indir
+    file_id = "1V1gbJDpmhVPnfXC1uA4ewmnOyXllEKQt"
+    download_url = f"https://drive.google.com/uc?id={file_id}"
+    sales_excel_file = "Sadeleştirilmiş Kategori Satış Raporu.xlsx"
 
-    # Tutmak istediğiniz sütunların listesi
-    columns_to_keep = [
-        "KATEGORİ",
-        "TOPLAM SATIŞ ADETİ",
-        "KATEGORİ KALEM ADEDİ 10 ADET VE ÜSTÜ",
-        "Kare Başarısı",
-        "SADECE SİTE KAÇ GÜNE BİTER",
-        "Herşey Dahil Kaç Güne Biter",
-        "GMT Satışta Olmayan Kare Sayısı",
-        "SİTA Satışta Olmayan Kare Sayısı",
-        "DEPO Satışta Olmayan Kare Sayısı",
-        "KAR ORAN YÜZDESİ"
-    ]
+    try:
+        gdown.download(download_url, sales_excel_file, quiet=False)
+    except Exception as e:
+        print(f"Dosya indirilirken bir hata oluştu: {e}")
+        exit()
 
-    # Sadece belirtilen sütunları seç
-    google_df = google_df[columns_to_keep]
+    # 3. İndirilen dosyanın geçerli bir Excel dosyası olup olmadığını kontrol et
+    def is_valid_excel(file_path):
+        try:
+            with zipfile.ZipFile(file_path, 'r') as zip_ref:
+                return True
+        except zipfile.BadZipFile:
+            return False
 
-    # "TOPLAM SATIŞ ADETİ" sütununda ilk boş hücreyi bul ve o hücreden sonraki satırları sil
-    # Bu adımı pandas ile yapmak daha verimli olacaktır
-    # İlk boş hücreyi bulmak için 'isna' veya boş string kontrolü yapabiliriz
-
-    # Öncelikle, boş hücreleri NaN olarak kabul edelim
-    google_df['TOPLAM SATIŞ ADETİ'] = google_df['TOPLAM SATIŞ ADETİ'].replace('', pd.NA)
-
-    # İlk boş hücreyi bul
-    first_empty_index = google_df['TOPLAM SATIŞ ADETİ'].isna().idxmax()
-
-    # Eğer ilk satır boşsa tüm veri silinecektir, bunu önlemek için kontrol edelim
-    if pd.isna(google_df.loc[first_empty_index, 'TOPLAM SATIŞ ADETİ']):
-        # Veriyi ilk boş hücreye kadar kes
-        google_df = google_df.iloc[:first_empty_index]
-    else:
-        # Hiç boş hücre yoksa tüm veri korunur
+    if is_valid_excel(sales_excel_file):
         pass
+    else:
+        print(f"{sales_excel_file} geçerli bir Excel dosyası değildir. Lütfen indirme bağlantısını ve dosya erişim izinlerini kontrol edin.")
+        exit()
 
-    # Excel dosyasına kaydet
-    excel_file = "Sadeleştirilmiş Kategori Raporu.xlsx"
-    google_df.to_excel(excel_file, index=False)
+    # 4. İlk Excel dosyasını (Google Sheets'ten gelen) oku
+    try:
+        report_df = pd.read_excel(report_excel_file, engine='openpyxl')
+    except Exception as e:
+        print(f"{report_excel_file} dosyası okunurken hata oluştu: {e}")
+        exit()
 
-    # ### Stil Değişiklikleri İçin openpyxl Kullanımı ###
+    # 5. İkinci Excel dosyasını (Google Drive'dan gelen) yükle
+    try:
+        sales_book = load_workbook(sales_excel_file)
+    except Exception as e:
+        print(f"{sales_excel_file} dosyası yüklenirken hata oluştu: {e}")
+        exit()
 
-    # Excel dosyasını aç
-    wb = load_workbook(excel_file)
-    ws = wb.active
+    # 6. "Openpyxl" sayfasını oluştur veya mevcut sayfayı seç
+    sheet_name = "Openpyxl"
+    if sheet_name in sales_book.sheetnames:
+        openpyxl_sheet = sales_book[sheet_name]
+    else:
+        openpyxl_sheet = sales_book.create_sheet(sheet_name)
 
-    # 1. B:J arasındaki tüm verilerin tamamını sayıya çevirme
-    # B:J sütunları Excel'de 2:10 sütun numaralarına karşılık gelir
-    for row in ws.iter_rows(min_row=2, min_col=2, max_col=10):
+
+    # 7. Hedef sayfayı temizlemek (varsa mevcut verileri silmek)
+    for row in openpyxl_sheet.iter_rows(min_row=1, max_row=openpyxl_sheet.max_row, max_col=openpyxl_sheet.max_column):
         for cell in row:
-            if cell.value is not None:
-                try:
-                    # Hücredeki değeri string'e çevir ve noktaları kaldır (örn: "1.234" -> "1234")
-                    # Türkiye'de sayılar genellikle "1.234,56" şeklinde yazılır, bu nedenle önce noktaları kaldırıp virgülleri noktaya çevirmeliyiz
-                    if isinstance(cell.value, str):
-                        value_str = cell.value.replace('.', '').replace(',', '.')
-                    else:
-                        value_str = str(cell.value)
-                    # Tam sayı veya ondalıklı sayıya çevir
-                    if '.' in value_str:
-                        cell.value = float(value_str)
-                    else:
-                        cell.value = int(value_str)
-                except ValueError:
-                    # Eğer sayıya çevrilemiyorsa olduğu gibi bırak
-                    pass
+            cell.value = None
 
-    # 2. A:J arasındaki hücrelere metni kaydırma, font ayarları ve hizalama uygulama
-    # Fontu 16 yapma ve kalınlaştırma
-    # Verileri hem yatay hem de dikey olarak ortalama
+    # 8. Başlıkları ilk satıra yaz
+    for col_num, column_title in enumerate(report_df.columns, 1):
+        openpyxl_sheet.cell(row=1, column=col_num, value=column_title)
 
-    # Alignment ve Font tanımlamaları
-    cell_alignment = Alignment(wrap_text=True, horizontal='center', vertical='center')
-    cell_font = Font(size=16, bold=True)
+    # 9. Verileri ikinci satırdan itibaren yaz
+    for row_num, row_data in enumerate(report_df.values.tolist(), start=2):
+        for col_num, cell_value in enumerate(row_data, 1):
+            openpyxl_sheet.cell(row=row_num, column=col_num, value=cell_value)
 
-    for row in ws.iter_rows(min_row=1, max_row=ws.max_row, min_col=1, max_col=10):
-        for cell in row:
-            cell.alignment = cell_alignment
-            cell.font = cell_font
+    # 10. Değişiklikleri kaydet
+    try:
+        sales_book.save(sales_excel_file)
+    except Exception as e:
+        print(f"{sales_excel_file} dosyasına veri kaydedilirken hata oluştu: {e}")
+        exit()
 
-    # 3. Sütun genişliklerini 33 olarak ayarlama
-    for col in range(1, 11):  # Sütun A (1) ile J (10)
-        column_letter = get_column_letter(col)
-        ws.column_dimensions[column_letter].width = 22
 
-    # 4. Satır yüksekliklerini ayarlama
-    # İlk satırın yüksekliğini 93
-    ws.row_dimensions[1].height = 93
 
-    # Diğer tüm satırların yüksekliğini 42
-    for row in range(2, ws.max_row + 1):
-        ws.row_dimensions[row].height = 42
+    # =========================
+    # 1) Formülleri değere çevirme
+    # =========================
 
-    # 5. İlk satırı dondurma
-    ws.freeze_panes = ws['A2']  # A2 hücresi seçilerek ilk satır dondurulur
+    sheet_name_to_convert = "Sadeleşmiş Kategori Satış Rapor"
+    full_path = os.path.abspath(sales_excel_file)  # sales_excel_file: "Sadeleştirilmiş Kategori Satış Raporu.xlsx"
 
-    # 6. Belirli sütunların başlık ve veri hücrelerine özel arka plan ve yazı renkleri uygulama
+    try:
+        excel_app = win32.Dispatch("Excel.Application")
+        excel_app.Visible = False  # Arka planda çalıştır
 
-    # Fonksiyon: Belirli bir sütunun harfini bulma
-    def get_column_letter_by_header(ws, header_name):
-        for cell in ws[1]:
-            if cell.value == header_name:
-                return cell.column_letter
-        return None
+        wb = excel_app.Workbooks.Open(full_path)
+        ws = wb.Worksheets(sheet_name_to_convert)
+        
+        # Tüm formülleri değerlere dönüştür
+        used_range = ws.UsedRange
+        used_range.Copy()
+        used_range.PasteSpecial(-4163)  # -4163 => xlPasteValues
 
-    # a. "KATEGORİ  KARE BAŞARISI" olan sütunun arka plan rengini #F4B084 yapma
-    kare_basarisi_col = get_column_letter_by_header(ws, "KATEGORİ  KARE BAŞARISI")
-    if kare_basarisi_col:
-        fill_color_kare = PatternFill(start_color='F4B084', end_color='F4B084', fill_type='solid')
-        for row in ws.iter_rows(min_row=1, max_row=ws.max_row, min_col=ws[kare_basarisi_col + '1'].column, max_col=ws[kare_basarisi_col + '1'].column):
-            for cell in row:
-                cell.fill = fill_color_kare
+        # =========================
+        # 2) A sütununda ilk boş hücreyi bul, o satırdan sonrası sil
+        # =========================
 
-    # b. "Herşey Dahil Kaç Güne Biter" sütununun sadece başlık hücresini siyah yapma ve yazı rengini #FFE699
-    hersey_dahil_col = get_column_letter_by_header(ws, "Herşey Dahil Kaç Güne Biter")
-    if hersey_dahil_col:
-        # Başlık hücresi
-        header_cell = ws[f"{hersey_dahil_col}1"]
-        header_cell.fill = PatternFill(start_color='000000', end_color='000000', fill_type='solid')  # Siyah
-        header_cell.font = Font(color='FFE699', size=16, bold=True)
-        # Veri hücreleri için ek bir formatlama yok
+        # A sütununda en yukarıdan başlayarak ilk boş satırı bulalım
+        row = 1
+        while True:
+            cell_value = ws.Cells(row, 1).Value
+            # Boş ya da None ise ilk boş hücre bulundu
+            if cell_value in [None, ""]:
+                break
+            row += 1
 
-    # c. "GMT Satışta Olmayan Kare Sayısı", "SİTA Satışta Olmayan Kare Sayısı", "DEPO Satışta Olmayan Kare Sayısı" sütunlarının başlık hücrelerini #548235 yapma ve yazı rengini beyaz
-    # ve başlık hariç diğer verilerin arka plan rengini #ED7D31 yapma
-    sütun_adlari = [
-        "GMT Satışta Olmayan Kare Sayısı",
-        "SİTA Satışta Olmayan Kare Sayısı",
-        "DEPO Satışta Olmayan Kare Sayısı"
-    ]
+        # row => ilk boş satırın index’i
+        # Kullanılan son satırı bulmak için
+        last_used_row = ws.UsedRange.Row + ws.UsedRange.Rows.Count - 1
 
-    for sütun in sütun_adlari:
-        col_letter = get_column_letter_by_header(ws, sütun)
-        if col_letter:
-            # Başlık hücresi
-            header_cell = ws[f"{col_letter}1"]
-            header_cell.fill = PatternFill(start_color='548235', end_color='548235', fill_type='solid')
-            header_cell.font = Font(color='FFFFFF', size=16, bold=True)  # Beyaz yazı
-            # Veri hücreleri
-            fill_color_veri = PatternFill(start_color='ED7D31', end_color='ED7D31', fill_type='solid')
-            for row in ws.iter_rows(min_row=2, max_row=ws.max_row, min_col=ws[col_letter + '1'].column, max_col=ws[col_letter + '1'].column):
-                for cell in row:
-                    cell.fill = fill_color_veri
+        # Eğer row <= last_used_row ise, o satırdan sonuna kadar silebiliriz
+        if row <= last_used_row:
+            ws.Range(f"{row}:{last_used_row}").Delete()  # satırları sil
 
-    # d. "KAR ORAN YÜZDESİ" sütununun sadece başlık kısmının arka plan rengini kırmızı yapma ve yazı rengini beyaz
-    # ve bu sütunda geriye kalan verilerin de arka plan rengini sarı yapma
-    kar_oran_col = get_column_letter_by_header(ws, "KAR ORAN YÜZDESİ")
-    if kar_oran_col:
-        # Başlık hücresi
-        header_cell = ws[f"{kar_oran_col}1"]
-        header_cell.fill = PatternFill(start_color='FF0000', end_color='FF0000', fill_type='solid')  # Kırmızı
-        header_cell.font = Font(color='FFFFFF', size=16, bold=True)  # Beyaz yazı
-        # Veri hücreleri
-        fill_color_kar_veri = PatternFill(start_color='FFFF00', end_color='FFFF00', fill_type='solid')  # Sarı
-        for row in ws.iter_rows(min_row=2, max_row=ws.max_row, min_col=ws[kar_oran_col + '1'].column, max_col=ws[kar_oran_col + '1'].column):
-            for cell in row:
-                cell.fill = fill_color_kar_veri
+        # =========================
+        # 3) "Openpyxl" sayfasını gizle
+        # =========================
+        try:
+            openpyxl_sheet = wb.Worksheets("Openpyxl")
+            # 0 => xlSheetHidden, 2 => xlSheetVeryHidden
+            openpyxl_sheet.Visible = 0  
+        except Exception:
+            print("'Openpyxl' isminde bir sayfa bulunamadı, atlanıyor...")
 
-    # 7. Tabloyu biçimlendirme (Beyaz tablo stili açık 1)
-    # Excel'de tablo stil isimleri İngilizce'dir. "Beyaz tablo stili açık 1" için muhtemelen "TableStyleMedium9" uygun olacaktır.
-    table_ref = f"A1:{get_column_letter(10)}{ws.max_row}"
-    tablo = Table(displayName="KategoriTablo", ref=table_ref)
+        # =========================
+        # 4) Dosyayı kaydet ve kapat (win32com)
+        # =========================
+        wb.Save()
+        wb.Close()
+        excel_app.Quit()
 
-    # Tablo stilini tanımla
-    table_style = TableStyleInfo(name="TableStyleMedium9", showFirstColumn=False,
-                                showLastColumn=False, showRowStripes=True, showColumnStripes=False)
-    tablo.tableStyleInfo = table_style
 
-    # Tabloyu çalışma sayfasına ekle
-    # Önce tabloyu silmek gerekebilir, eğer daha önce eklenmişse
-    if "KategoriTablo" in ws.tables:
-        del ws.tables["KategoriTablo"]
-    ws.add_table(tablo)
 
-    # 8. Sayfa görünümünü %85'e ayarlama
-    ws.sheet_view.zoomScale = 85
+    except Exception as e:
+        print(f"Formülleri değerlere dönüştürmede veya ek işlemlerde hata oluştu: {e}")
 
-    # Excel dosyasını kaydet
-    wb.save(excel_file)
+
+    # =========================
+    # 5) "Veri 1.xlsx" dosyasını sil
+    # =========================
+    try:
+        os.remove("Veri 1.xlsx")
+    except FileNotFoundError:
+        print("Veri 1.xlsx bulunamadı, zaten silinmiş olabilir.")
+    except Exception as e:
+        print(f"Veri 1.xlsx silinirken bir hata oluştu: {e}")
+
+    # =========================
+    # 6) Excel dosyasını tarih ön ekiyle yeniden adlandır
+    # =========================
+    today_str = datetime.now().strftime("%d.%m.%Y")  # GG.AA.YYYY formatı
+    new_file_name = f"{today_str} Sadeleşmiş Rapor.xlsx"
+
+    try:
+        # Sadeleştirilmiş Kategori Satış Raporu.xlsx -> "30.01.2025 Sadeleşmiş Rapor.xlsx"
+        os.rename(sales_excel_file, new_file_name)
+    except Exception as e:
+        print(f"Dosya yeniden adlandırılırken bir hata oluştu: {e}")
+
 
 
 else:
@@ -790,12 +788,12 @@ else:
 
 # İndirilecek linkler
 if etiket_secimi == "E":
-    links = ["https://task.haydigiy.com/FaprikaXls/B0JC0W/1/"]
+    links = ["https://www.siparis.haydigiy.com/FaprikaXls/B0JC0W/1/"]
 else:
     links = [
-        "https://task.haydigiy.com/FaprikaXls/ZIMVGV/1/",
-        "https://task.haydigiy.com/FaprikaXls/ZIMVGV/2/",
-        "https://task.haydigiy.com/FaprikaXls/ZIMVGV/3/"
+        "https://www.siparis.haydigiy.com/FaprikaXls/ZIMVGV/1/",
+        "https://www.siparis.haydigiy.com/FaprikaXls/ZIMVGV/2/",
+        "https://www.siparis.haydigiy.com/FaprikaXls/ZIMVGV/3/"
 
 
     ]
@@ -1085,7 +1083,7 @@ print(Fore.GREEN + "BAŞARILI - Görüntülenmenin Satışa Dönüş Oranını H
 #region // Satış Raporunu İndirme
 
 # Excel dosyasının indirileceği URL
-url = "https://task.haydigiy.com/FaprikaOrderXls/GZPCKE/1/"
+url = "https://www.siparis.haydigiy.com/FaprikaOrderXls/GZPCKE/1/"
 filename = "Satış Raporu.xlsx"
 
 # Dosyanın indirilme tarihini kontrol etmek için fonksiyon
@@ -1449,6 +1447,67 @@ print(Fore.GREEN + "BAŞARILI - Sütunların Biçim Ayarları ve Diğer Ayarlama
 
 #endregion
 
+#region // Kar Yüzdesi Sütununu Hesaplama
+
+# Excel dosyasını yükle
+dosya_adi = "Nirvana.xlsx"
+workbook = openpyxl.load_workbook(dosya_adi)
+
+# Kopya sayfayı seç
+kopya_sayfa_adi = "Sheet1"
+if kopya_sayfa_adi in workbook.sheetnames:
+    sheet = workbook[kopya_sayfa_adi]
+
+    # Başlıkları kontrol et ve "Stok Adedi Her Şey Dahil" sütununu bul
+    basliklar = {cell.value: cell.column for cell in sheet[1] if cell.value}
+    stok_adedi_kolon = basliklar.get("Net Satış Tarihi ve Adedi")
+
+    if stok_adedi_kolon:
+        # Yeni sütun indeksi (kopyalanan sütunun yanına eklenecek)
+        yeni_sutun_index = stok_adedi_kolon + 1
+
+        # "Stok Adedi Her Şey Dahil" sütununu biçimleriyle birlikte kopyala
+        for row in range(1, sheet.max_row + 1):
+            eski_hucre = sheet.cell(row=row, column=stok_adedi_kolon)
+            yeni_hucre = sheet.cell(row=row, column=yeni_sutun_index)
+
+            # Veriyi ve biçimlendirmeyi kopyala
+            yeni_hucre.value = eski_hucre.value
+            if eski_hucre.has_style:
+                yeni_hucre._style = copy(eski_hucre._style)
+
+        # Yeni sütuna başlık ekle
+        sheet.cell(row=1, column=yeni_sutun_index).value = "Kar Yüzdesi"
+
+        # Gerekli sütunların indekslerini belirle
+        satis_fiyati_kolon = basliklar.get("Satış Fiyatı")
+        alis_fiyati_kolon = basliklar.get("Alış Fiyatı")
+
+        if satis_fiyati_kolon and alis_fiyati_kolon:
+            # Kar yüzdesi hesaplamasını yap ve yüzde formatını uygula
+            for row in range(2, sheet.max_row + 1):
+                satis_fiyati = sheet.cell(row=row, column=satis_fiyati_kolon).value
+                alis_fiyati = sheet.cell(row=row, column=alis_fiyati_kolon).value
+
+                yeni_hucre = sheet.cell(row=row, column=yeni_sutun_index)
+
+                if satis_fiyati and alis_fiyati:  # Boş hücreleri kontrol et
+                    try:
+                        kar_yuzdesi = (satis_fiyati - alis_fiyati) / satis_fiyati
+                        yeni_hucre.value = kar_yuzdesi
+                        yeni_hucre.number_format = "0.00%"  # Yüzde formatı
+                    except ZeroDivisionError:
+                        yeni_hucre.value = None
+
+# Değişiklikleri kaydet
+workbook.save(dosya_adi)
+
+clear_previous_line()
+
+print(Fore.GREEN + "BAŞARILI - Kar Yüzdesi Sütununu Hesaplama (25/32)")
+
+#endregion
+
 #region // Gereksiz Excel Dosyalarını Silme
 
 # Eski dosyaları silme
@@ -1553,6 +1612,8 @@ print(Fore.GREEN + "BAŞARILI - Sigara Ürünleri Markadan Tespit Etme (23/32)")
 #endregion
 
 
+
+
 #region // Kopya Sayfa Oluşturma
 
 # Nirvana.xlsx dosyasını yükle
@@ -1571,67 +1632,6 @@ workbook.save(dosya_adi)
 clear_previous_line()
 
 print(Fore.GREEN + "BAŞARILI - Kopya Sayfa Oluşturma (24/32)")
-
-#endregion
-
-#region // Kar Yüzdesi Sütununu Hesaplama
-
-# Excel dosyasını yükle
-dosya_adi = "Nirvana.xlsx"
-workbook = openpyxl.load_workbook(dosya_adi)
-
-# Kopya sayfayı seç
-kopya_sayfa_adi = "Sheet1_Copy"
-if kopya_sayfa_adi in workbook.sheetnames:
-    sheet = workbook[kopya_sayfa_adi]
-
-    # Başlıkları kontrol et ve "Stok Adedi Her Şey Dahil" sütununu bul
-    basliklar = {cell.value: cell.column for cell in sheet[1] if cell.value}
-    stok_adedi_kolon = basliklar.get("Stok Adedi Her Şey Dahil")
-
-    if stok_adedi_kolon:
-        # Yeni sütun indeksi (kopyalanan sütunun yanına eklenecek)
-        yeni_sutun_index = stok_adedi_kolon + 1
-
-        # "Stok Adedi Her Şey Dahil" sütununu biçimleriyle birlikte kopyala
-        for row in range(1, sheet.max_row + 1):
-            eski_hucre = sheet.cell(row=row, column=stok_adedi_kolon)
-            yeni_hucre = sheet.cell(row=row, column=yeni_sutun_index)
-
-            # Veriyi ve biçimlendirmeyi kopyala
-            yeni_hucre.value = eski_hucre.value
-            if eski_hucre.has_style:
-                yeni_hucre._style = copy(eski_hucre._style)
-
-        # Yeni sütuna başlık ekle
-        sheet.cell(row=1, column=yeni_sutun_index).value = "Kar Yüzdesi"
-
-        # Gerekli sütunların indekslerini belirle
-        satis_fiyati_kolon = basliklar.get("Satış Fiyatı")
-        alis_fiyati_kolon = basliklar.get("Alış Fiyatı")
-
-        if satis_fiyati_kolon and alis_fiyati_kolon:
-            # Kar yüzdesi hesaplamasını yap ve yüzde formatını uygula
-            for row in range(2, sheet.max_row + 1):
-                satis_fiyati = sheet.cell(row=row, column=satis_fiyati_kolon).value
-                alis_fiyati = sheet.cell(row=row, column=alis_fiyati_kolon).value
-
-                yeni_hucre = sheet.cell(row=row, column=yeni_sutun_index)
-
-                if satis_fiyati and alis_fiyati:  # Boş hücreleri kontrol et
-                    try:
-                        kar_yuzdesi = (satis_fiyati - alis_fiyati) / satis_fiyati
-                        yeni_hucre.value = kar_yuzdesi
-                        yeni_hucre.number_format = "0.00%"  # Yüzde formatı
-                    except ZeroDivisionError:
-                        yeni_hucre.value = None
-
-# Değişiklikleri kaydet
-workbook.save(dosya_adi)
-
-clear_previous_line()
-
-print(Fore.GREEN + "BAŞARILI - Kar Yüzdesi Sütununu Hesaplama (25/32)")
 
 #endregion
 
