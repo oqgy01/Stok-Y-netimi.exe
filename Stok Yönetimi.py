@@ -895,100 +895,174 @@ print(Fore.GREEN + "BAŞARILI - UrunAdi Duzenleme Sütununu Oluşturma ve Sadece
 
 #region // GMT ve SİTA Verilerini Çekme
 
-# Google Sheet URL
+# -------------------------
+# 1. Google Sheet’ten veriyi çekme ve ilk işlemler
+# -------------------------
 google_sheet_url = "https://docs.google.com/spreadsheets/d/1aA5LhkQYgtwHLcKRV1mKl9Lb6VeOgUNIC9zy2kRagrs/gviz/tq?tqx=out:csv"
 
-# Google Sheet'ten veriyi al ve Excel dosyasına kaydet
 try:
+    # Google Sheet’ten CSV olarak veriyi oku
     google_df = pd.read_csv(google_sheet_url)
-    
-    # "GMT Ürün Kodu" ve "SİTA Ürün Kodu" sütunlarındaki " - " ifadesinden sonrasını temizle
+
+    # "GMT Ürün Kodu" ve "SİTA Ürün Kodu" sütunlarındaki " - " sonrası kısmı kaldır
     google_df["GMT Ürün Kodu"] = google_df["GMT Ürün Kodu"].str.split(" - ").str[0]
     google_df["SİTA Ürün Kodu"] = google_df["SİTA Ürün Kodu"].str.split(" - ").str[0]
-    
-    # Sayıya çevirme işlemi ve hataları geçme
+
+    # Sayıya çevirme; hatalı dönüşümleri NaN yap
     google_df["GMT Ürün Kodu"] = pd.to_numeric(google_df["GMT Ürün Kodu"], errors='coerce')
     google_df["SİTA Ürün Kodu"] = pd.to_numeric(google_df["SİTA Ürün Kodu"], errors='coerce')
 
-    # Hata nedeniyle NaN olan değerleri orijinal metin haline geri çevir
+    # NaN olan değerleri orijinal metinle doldur
     google_df["GMT Ürün Kodu"] = google_df["GMT Ürün Kodu"].fillna(google_df["GMT Ürün Kodu"].astype(str))
     google_df["SİTA Ürün Kodu"] = google_df["SİTA Ürün Kodu"].fillna(google_df["SİTA Ürün Kodu"].astype(str))
-    
-    # Güncellenmiş DataFrame'i Excel dosyasına kaydet
-    google_excel_file = "GMT ve SİTA.xlsx"
-    google_df.to_excel(google_excel_file, index=False)
-    
+
 except requests.exceptions.RequestException as e:
     print(f"Request failed: {e}")
 
+# Varsayalım clear_previous_line() adında bir fonksiyon tanımlı
 clear_previous_line()
 
 print(Fore.GREEN + "BAŞARILI - GMT ve SİTA Verilerine Erişme (4/32)")
+
+# -------------------------
+# 2. Belirtilen sütunları silme
+# -------------------------
+# Excel sütun harflerini (A, B, C, …) DataFrame sütun indekslerine çevirelim (A=0, B=1, C=2, …)
+# Örneğin: "A-B-C-D-E-F-G-H-E-G-M-N-O-P-Q-R" şeklinde silinmesi gereken sütun indekslerini belirleyelim.
+# (Tekrarlanan harfleri tek sefer ele alıyoruz.)
+drop_indices = [0, 1, 2, 3, 4, 5, 6, 7, 12, 13, 14, 15, 16, 17]
+# DataFrame’de mevcut olmayan indeksler varsa filtreleyelim:
+drop_indices = [i for i in drop_indices if i < len(google_df.columns)]
+
+# İstenmeyen sütunları kaldıralım:
+df_remaining = google_df.drop(google_df.columns[drop_indices], axis=1)
+
+# -------------------------
+# 3. Kalan veriden "E'den H'ye" olan kısmı taşıyalım
+# -------------------------
+# Burada "E'den H'ye" dediğimiz kısım, kalan DataFrame’de sıfırdan numaralandığında 5. ile 8. sütunlar (0-index ile 4,5,6,7) olarak kabul ediliyor.
+# Kopyalamak yerine, bu sütunları mevcut DataFrame’den kaldırıp yeni oluşturacağımız sayfaya taşıyoruz.
+if df_remaining.shape[1] >= 8:
+    # Taşımadan önce ilgili sütunları yeni bir DataFrame'e alıyoruz:
+    df_sheet2 = df_remaining.iloc[:, 4:8].copy()
+    # Sonrasında, bu sütunları df_remaining'dan kaldırıyoruz:
+    df_remaining.drop(df_remaining.columns[4:8], axis=1, inplace=True)
+else:
+    df_sheet2 = pd.DataFrame()  # Yeterli sütun yoksa boş DataFrame
+
+# -------------------------
+# 4. Duplicate (tekrarlayan) kayıtları kaldırma
+# -------------------------
+df_remaining.drop_duplicates(inplace=True)
+df_sheet2.drop_duplicates(inplace=True)
+
+# -------------------------
+# 5. Sonuçları tek bir Excel dosyasında farklı sayfalara yazma
+# -------------------------
+output_excel = "GMT ve SİTA.xlsx"
+with pd.ExcelWriter(output_excel, engine='openpyxl') as writer:
+    # df_remaining artık silinmiş E-H sütunlarıyla Sheet1'de yer alacak
+    df_remaining.to_excel(writer, sheet_name='Sheet1', index=False)
+    # Taşınan sütunlar sadece Sheet2'de yer alacak
+    df_sheet2.to_excel(writer, sheet_name='Sheet2', index=False)
+
+print(Fore.GREEN + f"Excel dosyası güncellendi: {output_excel}")
+
+
+
+
 
 #endregion
 
 #region // GMT ve SİTA Verilerini Ana Tabloya Çektirme (Etopla Yapma)
 
-# sonuc_excel dosyasını oku
+# Ana tabloyu oku
 sonuc_excel_file = "sonuc_excel.xlsx"
 sonuc_df = pd.read_excel(sonuc_excel_file)
 
-# GMT ve SİTA dosyasını oku
-gmt_sita_df = pd.read_excel("GMT ve SİTA.xlsx")
+# Kaynak dosyayı, GMT verileri için Sheet1 ve SİTA verileri için Sheet2 şeklinde oku
+source_excel_file = "GMT ve SİTA.xlsx"
+gmt_df = pd.read_excel(source_excel_file, sheet_name="Sheet1")
+sita_df = pd.read_excel(source_excel_file, sheet_name="Sheet2")
 
-# İlk adım: 'UrunAdi' sütunuyla eşleşme ve GMT/SİTA Stok Adedi değerlerini al
-def match_and_update(row):
+# -------------------------------------------------------------------
+# 1. Adım: 'UrunAdi' sütunu üzerinden eşleşme (doğrudan eşleme)
+# -------------------------------------------------------------------
+used_gmt_indices_step1 = []
+used_sita_indices_step1 = []
+
+for idx, row in sonuc_df.iterrows():
     urun_adi = row['UrunAdi']
     
-    # GMT Ürün Adı sütununda arama yap ve 'GMT Stok Adedi' değerini al
-    gmt_row = gmt_sita_df[gmt_sita_df['GMT Ürün Adı'] == urun_adi]
-    if not gmt_row.empty:
-        row['GMT Stok Adedi'] = gmt_row['GMT Stok Adedi'].values[0]
+    # GMT eşlemesi: Sheet1'deki 'GMT Ürün Adı' sütunu
+    matching_gmt = gmt_df[gmt_df['GMT Ürün Adı'] == urun_adi]
+    if not matching_gmt.empty:
+        matched_index = matching_gmt.index[0]
+        sonuc_df.at[idx, 'GMT Stok Adedi'] = matching_gmt.iloc[0]['GMT Stok Adedi']
+        used_gmt_indices_step1.append(matched_index)
     else:
-        row['GMT Stok Adedi'] = None
+        sonuc_df.at[idx, 'GMT Stok Adedi'] = None
 
-    # SİTA Ürün Adı sütununda arama yap ve 'SİTA Stok Adedi' değerini al
-    sista_row = gmt_sita_df[gmt_sita_df['SİTA Ürün Adı'] == urun_adi]
-    if not sista_row.empty:
-        row['SİTA Stok Adedi'] = sista_row['SİTA Stok Adedi'].values[0]
+    # SİTA eşlemesi: Sheet2'deki 'SİTA Ürün Adı' sütunu
+    matching_sita = sita_df[sita_df['SİTA Ürün Adı'] == urun_adi]
+    if not matching_sita.empty:
+        matched_index = matching_sita.index[0]
+        sonuc_df.at[idx, 'SİTA Stok Adedi'] = matching_sita.iloc[0]['SİTA Stok Adedi']
+        used_sita_indices_step1.append(matched_index)
     else:
-        row['SİTA Stok Adedi'] = None
+        sonuc_df.at[idx, 'SİTA Stok Adedi'] = None
 
-    return row
+# Eşleşen satırları kaynak DataFrame’lerden kaldır (Adım 1)
+gmt_df = gmt_df.drop(used_gmt_indices_step1).reset_index(drop=True)
+sita_df = sita_df.drop(used_sita_indices_step1).reset_index(drop=True)
 
-# İlk adımı uygulayın
-sonuc_df = sonuc_df.apply(match_and_update, axis=1)
+# -------------------------------------------------------------------
+# 2. Adım: 'UrunAdi Duzenleme' sütunu üzerinden, stok bilgisi boş veya sıfır olan satırlarda kod eşlemesi
+# -------------------------------------------------------------------
+used_gmt_indices_step2 = []
+used_sita_indices_step2 = []
 
-# İkinci adım: 'UrunAdi Duzenleme' sütununa göre arama, sadece GMT Stok Adedi veya SİTA Stok Adedi boş ya da sıfırsa
-def match_and_update_with_code(row):
+for idx, row in sonuc_df.iterrows():
     urun_kodu = row['UrunAdi Duzenleme']
     
-    # Eğer GMT Stok Adedi boş ya da sıfırsa, 'GMT Ürün Kodu' ile arama yap
+    # GMT için: stok bilgisi boş ya da sıfır ise, 'GMT Ürün Kodu' üzerinden eşle
     if pd.isna(row['GMT Stok Adedi']) or row['GMT Stok Adedi'] == 0:
-        gmt_code_row = gmt_sita_df[gmt_sita_df['GMT Ürün Kodu'] == urun_kodu]
-        if not gmt_code_row.empty:
-            gmt_etopla = gmt_code_row['GMT Stok Adedi'].values[0]
-            row['GMT Stok Adedi'] = "GMT'de Var" if gmt_etopla > 0 else gmt_etopla
+        matching_gmt_code = gmt_df[gmt_df['GMT Ürün Kodu'] == urun_kodu]
+        if not matching_gmt_code.empty:
+            matched_index = matching_gmt_code.index[0]
+            gmt_stok = matching_gmt_code.iloc[0]['GMT Stok Adedi']
+            sonuc_df.at[idx, 'GMT Stok Adedi'] = "GMT'de Var" if gmt_stok > 0 else gmt_stok
+            used_gmt_indices_step2.append(matched_index)
     
-    # Eğer SİTA Stok Adedi boş ya da sıfırsa, 'SİTA Ürün Kodu' ile arama yap
+    # SİTA için: stok bilgisi boş ya da sıfır ise, 'SİTA Ürün Kodu' üzerinden eşle
     if pd.isna(row['SİTA Stok Adedi']) or row['SİTA Stok Adedi'] == 0:
-        sista_code_row = gmt_sita_df[gmt_sita_df['SİTA Ürün Kodu'] == urun_kodu]
-        if not sista_code_row.empty:
-            sita_etopla = sista_code_row['SİTA Stok Adedi'].values[0]
-            row['SİTA Stok Adedi'] = "SİTA'da Var" if sita_etopla > 0 else sita_etopla
+        matching_sita_code = sita_df[sita_df['SİTA Ürün Kodu'] == urun_kodu]
+        if not matching_sita_code.empty:
+            matched_index = matching_sita_code.index[0]
+            sita_stok = matching_sita_code.iloc[0]['SİTA Stok Adedi']
+            sonuc_df.at[idx, 'SİTA Stok Adedi'] = "SİTA'da Var" if sita_stok > 0 else sita_stok
+            used_sita_indices_step2.append(matched_index)
 
-    return row
+# Eşleşen satırları kaynak DataFrame’lerden kaldır (Adım 2)
+gmt_df = gmt_df.drop(used_gmt_indices_step2).reset_index(drop=True)
+sita_df = sita_df.drop(used_sita_indices_step2).reset_index(drop=True)
 
-# İkinci adımı uygulayın
-sonuc_df = sonuc_df.apply(match_and_update_with_code, axis=1)
+# -------------------------------------------------------------------
+# Güncellenmiş ana tabloyu kaydet
+# -------------------------------------------------------------------
+sonuc_df.to_excel("sonuc_excel.xlsx", index=False)
 
-# Güncellenmiş DataFrame'i yeni bir Excel dosyasına kaydedin
-updated_excel_file = "sonuc_excel.xlsx"
-sonuc_df.to_excel(updated_excel_file, index=False)
+# Güncellenmiş kaynak dosyayı, GMT verileri için Sheet1 ve SİTA verileri için Sheet2 şeklinde kaydet
+with pd.ExcelWriter("GMT ve SİTA.xlsx", engine='openpyxl') as writer:
+    gmt_df.to_excel(writer, sheet_name='Sheet1', index=False)
+    sita_df.to_excel(writer, sheet_name='Sheet2', index=False)
 
-clear_previous_line()
+clear_previous_line()  # Bu fonksiyonun tanımlı olduğunu varsayıyoruz
 
 print(Fore.GREEN + "BAŞARILI - GMT ve SİTA Verilerini Ana Tabloya Çektirme (5/32)")
+
+
+
 
 #endregion
 
