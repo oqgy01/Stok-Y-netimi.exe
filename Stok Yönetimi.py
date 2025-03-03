@@ -79,6 +79,7 @@ from openpyxl.styles import PatternFill
 import sys
 import win32com.client as win32
 import gdown
+from supabase import create_client, Client
 warnings.filterwarnings("ignore")
 pd.options.mode.chained_assignment = None
 init(autoreset=True)
@@ -868,107 +869,118 @@ print(Fore.GREEN + "BAŞARILI - Ürünlerin Kategorilerini Belirleme ve Tesettü
 
 #region // UrunAdi Duzenleme Sütununu Oluşturma ve Sadece Ürün Kodlarını Bırakma
 
-# sonuc_excel.xlsx dosyasını oku
+# Excel dosyasını oku
 sonuc_excel_file = "sonuc_excel.xlsx"
 sonuc_df = pd.read_excel(sonuc_excel_file)
 
-# Ürün kodunu ayıklamak için güncellenmiş bir fonksiyon tanımla
+# Ürün kodunu ayıklamak için fonksiyon
 def extract_product_code(urun_adi):
-    match = re.search(r' - (\d+)\.', urun_adi)  # " - " ve "." arasındaki sayıyı ayıkla
+    match = re.search(r' - (\d+)\.', urun_adi)  # " - " ile "." arasındaki sayıyı yakala
     return match.group(1) if match else None
 
-# Yeni sütun oluştur ve her satır için ürün kodunu çek
-sonuc_df['UrunAdi Duzenleme'] = sonuc_df['UrunAdi'].apply(extract_product_code)
+# Renk bilgisini ayıklamak için fonksiyon
+def extract_color(urun_adi):
+    # " - " ibaresiyle parçala (ilk kısım ürün adı, 2. kısım kod)
+    parts = re.split(r' - ', urun_adi)
+    if len(parts) > 0:
+        # ' - ' öncesindeki kısmı alıp son kelimeyi renk olarak yakala
+        before_part = parts[0].strip()
+        words = before_part.split()
+        if words:
+            return words[-1]
+    return None
 
-# "UrunAdi Duzenleme" sütununu metin formatına çevir
+# Yeni sütun oluştur (Ürün kodu)
+sonuc_df['UrunAdi Duzenleme'] = sonuc_df['UrunAdi'].apply(extract_product_code)
 sonuc_df['UrunAdi Duzenleme'] = sonuc_df['UrunAdi Duzenleme'].astype(str)
+
+# "UrunAdi ve Renk" sütunu oluştur
+sonuc_df['UrunAdi ve Renk'] = sonuc_df.apply(
+    lambda row: row['UrunAdi Duzenleme'] + " - " + extract_color(row['UrunAdi']),
+    axis=1
+)
 
 # Güncellenmiş DataFrame'i aynı Excel dosyasına kaydet
 updated_excel_file = "sonuc_excel.xlsx"
 sonuc_df.to_excel(updated_excel_file, index=False)
 
-clear_previous_line()
-
-print(Fore.GREEN + "BAŞARILI - UrunAdi Duzenleme Sütununu Oluşturma ve Sadece Ürün Kodlarını Bırakma (3/32)")
+# Ekrana başarı mesajını yazdır
+print(Fore.GREEN + "BAŞARILI - 'UrunAdi Duzenleme' ve 'UrunAdi ve Renk' Sütunları Oluşturuldu (3/32)")
 
 #endregion
 
 #region // GMT ve SİTA Verilerini Çekme
 
-# -------------------------
-# 1. Google Sheet’ten veriyi çekme ve ilk işlemler
-# -------------------------
-google_sheet_url = "https://docs.google.com/spreadsheets/d/1aA5LhkQYgtwHLcKRV1mKl9Lb6VeOgUNIC9zy2kRagrs/gviz/tq?tqx=out:csv"
 
-try:
-    # Google Sheet’ten CSV olarak veriyi oku
-    google_df = pd.read_csv(google_sheet_url)
+# Supabase bağlantı bilgileri
+SUPABASE_URL = "https://zmvsatlvobhdaxxgtoap.supabase.co"
+SUPABASE_KEY = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InptdnNhdGx2b2JoZGF4eGd0b2FwIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NDAxNzIxMzksImV4cCI6MjA1NTc0ODEzOX0.lJLudSfixMbEOkJmfv22MsRLofP7ZjFkbGj26xF3dts"
 
-    # "GMT Ürün Kodu" ve "SİTA Ürün Kodu" sütunlarındaki " - " sonrası kısmı kaldır
-    google_df["GMT Ürün Kodu"] = google_df["GMT Ürün Kodu"].str.split(" - ").str[0]
-    google_df["SİTA Ürün Kodu"] = google_df["SİTA Ürün Kodu"].str.split(" - ").str[0]
+# Supabase istemcisini oluştur
+supabase: Client = create_client(SUPABASE_URL, SUPABASE_KEY)
 
-    # Sayıya çevirme; hatalı dönüşümleri NaN yap
-    google_df["GMT Ürün Kodu"] = pd.to_numeric(google_df["GMT Ürün Kodu"], errors='coerce')
-    google_df["SİTA Ürün Kodu"] = pd.to_numeric(google_df["SİTA Ürün Kodu"], errors='coerce')
+# "urunyonetimi" tablosundan verileri çek
+# Filtreler:
+#  - gmtsitalabel, "GMT", "SİTA" veya "Yarım GMT" olacak
+#  - acilmamisadet > 0
+# Sadece "urunkodu", "renk", "acilmamisadet" ve "gmtsitalabel" kolonlarını çağırıyoruz
+response = supabase.table("urunyonetimi").select("urunkodu, renk, acilmamisadet, gmtsitalabel")\
+    .in_("gmtsitalabel", ["GMT", "SİTA", "Yarım GMT"])\
+    .gt("acilmamisadet", 0)\
+    .execute()
 
-    # NaN olan değerleri orijinal metinle doldur
-    google_df["GMT Ürün Kodu"] = google_df["GMT Ürün Kodu"].fillna(google_df["GMT Ürün Kodu"].astype(str))
-    google_df["SİTA Ürün Kodu"] = google_df["SİTA Ürün Kodu"].fillna(google_df["SİTA Ürün Kodu"].astype(str))
+# Gelen verileri DataFrame'e çevir
+df = pd.DataFrame(response.data)
 
-except requests.exceptions.RequestException as e:
-    print(f"Request failed: {e}")
+# Renk kolonunu "baş harfi büyük, gerisi küçük" olacak şekilde düzenle
+df["renk"] = df["renk"].apply(lambda x: x.capitalize() if isinstance(x, str) else x)
 
-# Varsayalım clear_previous_line() adında bir fonksiyon tanımlı
-clear_previous_line()
+# -----------------
+# GMT & Yarım GMT işlemleri (Sheet1)
+# -----------------
 
-print(Fore.GREEN + "BAŞARILI - GMT ve SİTA Verilerine Erişme (4/32)")
+# 1) "gmtsitalabel" değeri GMT veya Yarım GMT olanları filtrele
+df_gmt = df[df["gmtsitalabel"].isin(["GMT", "Yarım GMT"])]
 
-# -------------------------
-# 2. Belirtilen sütunları silme
-# -------------------------
-# Excel sütun harflerini (A, B, C, …) DataFrame sütun indekslerine çevirelim (A=0, B=1, C=2, …)
-# Örneğin: "A-B-C-D-E-F-G-H-E-G-M-N-O-P-Q-R" şeklinde silinmesi gereken sütun indekslerini belirleyelim.
-# (Tekrarlanan harfleri tek sefer ele alıyoruz.)
-drop_indices = [0, 1, 2, 3, 4, 5, 6, 7, 12, 13, 14, 15, 16, 17]
-# DataFrame’de mevcut olmayan indeksler varsa filtreleyelim:
-drop_indices = [i for i in drop_indices if i < len(google_df.columns)]
+# 2) Aynı urunkodu ve renk için "acilmamisadet" değerini topla
+df_gmt_grouped = df_gmt.groupby(["urunkodu", "renk"], as_index=False)["acilmamisadet"].sum()
 
-# İstenmeyen sütunları kaldıralım:
-df_remaining = google_df.drop(google_df.columns[drop_indices], axis=1)
+# 3) Son DataFrame'i, istenen kolon adlarıyla oluştur
+df_gmt_final = pd.DataFrame()
+df_gmt_final["GMT Ürün Kodu"] = df_gmt_grouped["urunkodu"]
+df_gmt_final["GMT Ürün Adı"] = df_gmt_grouped["urunkodu"].astype(str) + " - " + df_gmt_grouped["renk"]
+df_gmt_final["GMT Stok Adedi"] = df_gmt_grouped["acilmamisadet"]
 
-# -------------------------
-# 3. Kalan veriden "E'den H'ye" olan kısmı taşıyalım
-# -------------------------
-# Burada "E'den H'ye" dediğimiz kısım, kalan DataFrame’de sıfırdan numaralandığında 5. ile 8. sütunlar (0-index ile 4,5,6,7) olarak kabul ediliyor.
-# Kopyalamak yerine, bu sütunları mevcut DataFrame’den kaldırıp yeni oluşturacağımız sayfaya taşıyoruz.
-if df_remaining.shape[1] >= 8:
-    # Taşımadan önce ilgili sütunları yeni bir DataFrame'e alıyoruz:
-    df_sheet2 = df_remaining.iloc[:, 4:8].copy()
-    # Sonrasında, bu sütunları df_remaining'dan kaldırıyoruz:
-    df_remaining.drop(df_remaining.columns[4:8], axis=1, inplace=True)
-else:
-    df_sheet2 = pd.DataFrame()  # Yeterli sütun yoksa boş DataFrame
+# Ürün kodlarını sayısal (integer) formata çevir
+df_gmt_final["GMT Ürün Kodu"] = pd.to_numeric(df_gmt_final["GMT Ürün Kodu"], errors="coerce").astype("Int64")
 
-# -------------------------
-# 4. Duplicate (tekrarlayan) kayıtları kaldırma
-# -------------------------
-df_remaining.drop_duplicates(inplace=True)
-df_sheet2.drop_duplicates(inplace=True)
+# -----------------
+# SİTA işlemleri (Sheet2)
+# -----------------
 
-# -------------------------
-# 5. Sonuçları tek bir Excel dosyasında farklı sayfalara yazma
-# -------------------------
-output_excel = "GMT ve SİTA.xlsx"
-with pd.ExcelWriter(output_excel, engine='openpyxl') as writer:
-    # df_remaining artık silinmiş E-H sütunlarıyla Sheet1'de yer alacak
-    df_remaining.to_excel(writer, sheet_name='Sheet1', index=False)
-    # Taşınan sütunlar sadece Sheet2'de yer alacak
-    df_sheet2.to_excel(writer, sheet_name='Sheet2', index=False)
+# 1) "gmtsitalabel" değeri SİTA olanları filtrele
+df_sita = df[df["gmtsitalabel"] == "SİTA"]
 
-print(Fore.GREEN + f"Excel dosyası güncellendi: {output_excel}")
+# 2) Aynı urunkodu ve renk için "acilmamisadet" değerini topla
+df_sita_grouped = df_sita.groupby(["urunkodu", "renk"], as_index=False)["acilmamisadet"].sum()
 
+# 3) Son DataFrame'i, istenen kolon adlarıyla oluştur
+df_sita_final = pd.DataFrame()
+df_sita_final["SİTA Ürün Kodu"] = df_sita_grouped["urunkodu"]
+df_sita_final["SİTA Ürün Adı"] = df_sita_grouped["urunkodu"].astype(str) + " - " + df_sita_grouped["renk"]
+df_sita_final["SİTA Stok Adedi"] = df_sita_grouped["acilmamisadet"]
 
+# Ürün kodlarını sayısal (integer) formata çevir
+df_sita_final["SİTA Ürün Kodu"] = pd.to_numeric(df_sita_final["SİTA Ürün Kodu"], errors="coerce").astype("Int64")
+
+# -----------------
+# Excel'e Yazma
+# -----------------
+with pd.ExcelWriter("GMT ve SİTA.xlsx") as writer:
+    df_gmt_final.to_excel(writer, sheet_name="Sheet1", index=False)
+    df_sita_final.to_excel(writer, sheet_name="Sheet2", index=False)
+
+print(Fore.GREEN + "Veriler çekildi ve dönüştürülerek Excel'e yazıldı.")
 
 
 
@@ -992,7 +1004,7 @@ used_gmt_indices_step1 = []
 used_sita_indices_step1 = []
 
 for idx, row in sonuc_df.iterrows():
-    urun_adi = row['UrunAdi']
+    urun_adi = row['UrunAdi ve Renk']
     
     # GMT eşlemesi: Sheet1'deki 'GMT Ürün Adı' sütunu
     matching_gmt = gmt_df[gmt_df['GMT Ürün Adı'] == urun_adi]
@@ -1957,4 +1969,7 @@ clear_previous_line()
 print(Fore.GREEN + "BAŞARILI - Sütunlara Filtreleme Özelliği Ekleme (32/32)")
 
 #endregion
+
+
+
 
