@@ -912,6 +912,10 @@ print(Fore.GREEN + "BAŞARILI - 'UrunAdi Duzenleme' ve 'UrunAdi ve Renk' Sütunl
 #region // GMT ve SİTA Verilerini Çekme
 
 
+import pandas as pd
+from supabase import create_client, Client
+from colorama import Fore
+
 # Supabase bağlantı bilgileri
 SUPABASE_URL = "https://zmvsatlvobhdaxxgtoap.supabase.co"
 SUPABASE_KEY = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InptdnNhdGx2b2JoZGF4eGd0b2FwIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NDAxNzIxMzksImV4cCI6MjA1NTc0ODEzOX0.lJLudSfixMbEOkJmfv22MsRLofP7ZjFkbGj26xF3dts"
@@ -919,18 +923,29 @@ SUPABASE_KEY = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJ
 # Supabase istemcisini oluştur
 supabase: Client = create_client(SUPABASE_URL, SUPABASE_KEY)
 
-# "urunyonetimi" tablosundan verileri çek
-# Filtreler:
-#  - gmtsitalabel, "GMT", "SİTA" veya "Yarım GMT" olacak
-#  - acilmamisadet > 0
-# Sadece "urunkodu", "renk", "acilmamisadet" ve "gmtsitalabel" kolonlarını çağırıyoruz
-response = supabase.table("urunyonetimi").select("urunkodu, renk, acilmamisadet, gmtsitalabel")\
-    .in_("gmtsitalabel", ["GMT", "SİTA", "Yarım GMT"])\
-    .gt("acilmamisadet", 0)\
-    .execute()
+# Pagination yöntemiyle tüm verileri çekmek için:
+all_data = []
+start = 0
+page_size = 1000
+
+while True:
+    end = start + page_size - 1  # range metodu dahil aralık belirler
+    response = supabase.table("urunyonetimi")\
+        .select("urunkodu, renk, acilmamisadet, gmtsitalabel")\
+        .in_("gmtsitalabel", ["GMT", "SİTA", "Yarım GMT"])\
+        .gt("acilmamisadet", 0)\
+        .range(start, end)\
+        .execute()
+    
+    data = response.data
+    if not data:
+        break
+    
+    all_data.extend(data)
+    start += page_size
 
 # Gelen verileri DataFrame'e çevir
-df = pd.DataFrame(response.data)
+df = pd.DataFrame(all_data)
 
 # Renk kolonunu "baş harfi büyük, gerisi küçük" olacak şekilde düzenle
 df["renk"] = df["renk"].apply(lambda x: x.capitalize() if isinstance(x, str) else x)
