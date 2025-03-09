@@ -1,850 +1,263 @@
 #region // Kütüphaneler
 
-#Doğrulama Kodu
 import requests
 from bs4 import BeautifulSoup
-
-url = "https://docs.google.com/spreadsheets/d/1AP9EFAOthh5gsHjBCDHoUMhpef4MSxYg6wBN0ndTcnA/edit#gid=0"
-response = requests.get(url)
-html_content = response.content
-soup = BeautifulSoup(html_content, "html.parser")
-first_cell = soup.find("td", {"class": "s2"}).text.strip()
-if first_cell != "Aktif":
-    exit()
-first_cell = soup.find("td", {"class": "s1"}).text.strip()
-print(first_cell)
-
 import pandas as pd
 from io import BytesIO
 import re
 from colorama import init, Fore, Style
-from datetime import datetime
-import numpy as np
-from openpyxl import load_workbook
-from openpyxl.utils.dataframe import dataframe_to_rows
-from openpyxl.styles import Alignment, Font
-from openpyxl.styles import Font, Border, Side
-from openpyxl.utils import get_column_letter
-from openpyxl.worksheet.table import Table, TableStyleInfo
+from datetime import datetime, timedelta
 import os
-import asyncio
-import xlsxwriter
 import openpyxl
-from openpyxl.styles import Font
-import time
-from datetime import datetime, timedelta
-import shutil
-from tqdm import tqdm
-import warnings
-from selenium.webdriver.chrome.service import Service
-from colorama import init, Fore, Style
-import pandas as pd
+from openpyxl import load_workbook, Workbook
+from openpyxl.utils import get_column_letter
+from openpyxl.comments import Comment
+from openpyxl.styles import Font, PatternFill
+import xlsxwriter
+import gc
+from supabase import create_client, Client
 from selenium import webdriver
-from selenium.webdriver.common.keys import Keys
-from io import BytesIO
-import numpy as np
-from selenium.webdriver.support.ui import Select
-from selenium.webdriver.common.by import By
-from selenium.webdriver.support import expected_conditions as EC
-from selenium.webdriver.support.ui import WebDriverWait
-import time
-from tqdm import tqdm
-import warnings
-from colorama import init, Fore, Style
-import threading
-from selenium.common.exceptions import TimeoutException, NoSuchElementException
-import chromedriver_autoinstaller
-from concurrent.futures import ThreadPoolExecutor
-import subprocess
-from selenium.common.exceptions import TimeoutException, WebDriverException
-from bs4 import BeautifulSoup
-from webdriver_manager.chrome import ChromeDriverManager
 from selenium.webdriver.chrome.service import Service
-from datetime import datetime
-from datetime import datetime, timedelta
-import shutil
-import os
-from openpyxl import load_workbook
-from openpyxl import Workbook
-from pathlib import Path
-import re
+from selenium.webdriver.chrome.options import Options
+from selenium.webdriver.common.by import By
+import time
 import http.client
 import json
-import gc
-from concurrent.futures import ThreadPoolExecutor, as_completed
-from openpyxl.comments import Comment
-from selenium.webdriver.chrome.options import Options
-from copy import copy
-from openpyxl.styles import PatternFill
-import sys
-import win32com.client as win32
-import gdown
-from supabase import create_client, Client
-warnings.filterwarnings("ignore")
-pd.options.mode.chained_assignment = None
+import datetime
+import warnings
+import copy
 init(autoreset=True)
+warnings.filterwarnings("ignore")
+
 
 #endregion
-
-#region // print Temizleme Komutu
-
-def clear_previous_line():
-    # Terminal imlecini bir satır yukarı taşı ve mevcut satırı tamamen temizle
-    sys.stdout.write("\033[F")  # Bir satır yukarı
-    sys.stdout.write("\r" + " " * 150 + "\r")  # Satırı boşluklarla temizle ve başa dön
-    sys.stdout.flush()
-
-#endregion
-
-print(" ")
-print(Fore.GREEN + "Oturum Açma Başarılı Oldu")
-print(" /﹋\ ")
-print("(҂`_´)")
-print(Fore.RED + "<,︻╦╤─ ҉ - -")
-print(" /﹋\ ")
-print("Mustafa ARI")
 
 #region // Entegrasyondan Önce mi Sonra mı Kontrolü ve Satış Raporu Tarihini Düne Göre Ayarlama
 
-from selenium import webdriver
-from selenium.webdriver.common.by import By
-from selenium.webdriver.chrome.service import Service
-from selenium.webdriver.chrome.options import Options
-from datetime import datetime, timedelta
-import time
-from colorama import Fore, Style
+def list_detail_with_http_client():
+    # 1) Giriş (login) isteği
+    conn = http.client.HTTPSConnection("siparis.haydigiy.com")
 
-from selenium import webdriver
-from selenium.webdriver.common.by import By
-from selenium.webdriver.chrome.service import Service
-from selenium.webdriver.chrome.options import Options
-import time
-from datetime import datetime, timedelta
-import colorama
-from colorama import Fore, Style
+    login_payload = {
+        "apiKey": "MypGcaEInEOTzuYQydgDHQ",
+        "secretKey": "jRqliBLDPke76YhL_WL5qg",
+        "emailOrPhone": "mustafa_kod@haydigiy.com",
+        "password": "123456"
+    }
+    login_headers = {
+        "Content-Type": "application/json",
+        "Accept": "application/json"
+    }
 
-colorama.init(autoreset=True)
+    conn.request(
+        "POST",
+        "/api/customer/login",
+        body=json.dumps(login_payload),
+        headers=login_headers
+    )
 
-# Gizli modda Chrome ayarları
-chrome_options = Options()
-chrome_options.add_argument("--headless")  # Tarayıcıyı ekranda göstermemek için
-chrome_options.add_argument("--incognito")  # Gizli modda çalıştırmak için
-chrome_options.add_argument("--disable-gpu")
-chrome_options.add_argument("--no-sandbox")
-chrome_options.add_argument("--disable-dev-shm-usage")
+    res = conn.getresponse()
+    data = res.read().decode("utf-8")
 
-# ChromeDriver hizmeti
-service = Service()
+    if res.status != 200:
+        print("Giriş başarısız:", data)
+        return
 
-# Tarayıcı başlat
-driver = webdriver.Chrome(service=service, options=chrome_options)
+    login_data = json.loads(data)
+    token = login_data.get("data", {}).get("token")
+    if not token:
+        print("Token alınamadı. Dönen veri:", login_data)
+        return
 
-# Kullanıcı bilgileri
-username = "mustafa_kod@haydigiy.com"
-password = "123456"
+    # 2) list-detail isteği
+    conn = http.client.HTTPSConnection("siparis.haydigiy.com")
 
-# URL'ler
-login_url = "https://www.siparis.haydigiy.com/kullanici-giris/?ReturnUrl=%2Fadmin"
-product_list_url = "https://www.siparis.haydigiy.com/admin/product/list/"
+    list_detail_payload = {
+        "searchTerm": None,
+        "inCategoryIds": [],
+        "includeInSubCategories": True,
+        "notInCategoryIds": [],
+        "includeNotInSubCategories": True,
+        "inManufacturerIds": [],
+        "notInManufacturerIds": [],
+        "inVendorIds": [],
+        "notInVendorIds": [],
+        "inProductTagIds": [],
+        "notInProductTagIds": [],
+        "published": None,
+        "minStock": None,
+        "maxStock": None,
+        "minPrice": None,
+        "maxPrice": None,
+        "minProductCost": None,
+        "maxProductCost": None,
+        "pageIndex": 1,
+        "pageSize": 1
+    }
 
-try:
-    # Giriş sayfasına git
-    driver.get(login_url)
-    time.sleep(2)  # Sayfanın yüklenmesini bekleyin
+    list_detail_headers = {
+        "Authorization": f"Bearer {token}",
+        "Content-Type": "application/json",
+        "Accept": "application/json"
+    }
 
-    # Giriş bilgilerini doldur
-    driver.find_element(By.NAME, "EmailOrPhone").send_keys(username)
-    driver.find_element(By.NAME, "Password").send_keys(password)
-    driver.find_element(By.CSS_SELECTOR, "button[type='submit']").click()
-    time.sleep(3)  # Giriş sonrası bekleme süresi
+    conn.request(
+        "POST",
+        "/adminapi/product/list-detail",
+        body=json.dumps(list_detail_payload),
+        headers=list_detail_headers
+    )
 
-    # Ürün listesi sayfasına git
-    driver.get(product_list_url)
-    time.sleep(5)  # Sayfanın tamamen yüklenmesini bekleyin
+    res = conn.getresponse()
+    data = res.read().decode("utf-8")
 
-    # Bugünün tarihini, gün ve ay için başında sıfır olmadan alalım
-    now = datetime.now()
-    # Örn: "1.1.2024" veya "10.2.2025"
-    current_date_no_leading = f"{now.day}.{now.month}.{now.year}"
+    if res.status != 200:
+        print("List-detail isteği başarısız:", data)
+        return
 
-    # Dinamik yüklenen ürün verilerini çek
-    rows = driver.find_elements(By.CSS_SELECTOR, "tr[data-uid]")
+    # 3) Gelen JSON'u parse edelim
+    response_data = json.loads(data)
 
-    if not rows:
-        print(Fore.RED + "Ürün listesi bulunamadı veya doğru yüklenmedi." + Style.RESET_ALL)
-    else:
-        # Kontrol için bayrak (flag)
-        contains_today = False
+    items = response_data.get("data", [])
+    if not items:
+        print("Herhangi bir ürün kaydı bulunamadı.")
+        return
 
-        for row in rows:
-            # Tarih hücresini bulun (5. sütun)
-            date_cell = row.find_elements(By.TAG_NAME, "td")[4].text.strip()
-            
-            # Eğer hücrede bugünün tarihi varsa
-            if current_date_no_leading in date_cell:
-                contains_today = True
-                break
+    first_item = items[0]
+    created_on_str = first_item.get("createdOn")
+    if not created_on_str:
+        print("İlk üründe 'createdOn' alanı yok.")
+        return
 
-        # Bayrağa göre mesaj yazdır
-        if contains_today:
-            print(Fore.GREEN + "Entegrasyondan Sonraki Listeyi Çekiyorsunuz" + Style.RESET_ALL)
+    # 4) createdOn değerini ISO formatından datetime'a çevirelim
+    try:
+        created_on_dt = datetime.datetime.fromisoformat(created_on_str.replace("Z", ""))
+        today = datetime.datetime.now().date()
+        if created_on_dt.date() == today:
+            print("\033[92mEntegrasyondan Sonraki Listeyi Çekiyorsunuz !\033[0m")
         else:
-            print(Fore.RED + "Dikkat Entegrasyondan Önceki Listeyi Çekiyorsunuz !" + Style.RESET_ALL)
+            print("\033[91mDikkat Entegrasyondan Önceki Listeyi Çekiyorsunuz !\033[0m")
 
-    # Belirttiğiniz sayfaya yönlendirme
-    desired_page_url = "https://www.siparis.haydigiy.com/admin/exportorder/edit/154/"
-    driver.get(desired_page_url)
-    time.sleep(2)
+    except ValueError:
+        print("createdOn alanı beklenmeyen bir formatta:", created_on_str)
 
-    # Dünün tarihini de aynı şekilde sıfırsız formatta alalım
-    yesterday = datetime.now() - timedelta(days=1)
-    # Örn: "31.1.2024"
-    formatted_date_no_leading = f"{yesterday.day}.{yesterday.month}.{yesterday.year}"
-
-    # EndDate alanını bulma ve tarih girişini yapma
-    end_date_input = driver.find_element(By.ID, "EndDate")
-    end_date_input.clear()
-    end_date_input.send_keys(formatted_date_no_leading)
-
-    # StartDate alanını bulma ve tarih girişini yapma
-    start_date_input = driver.find_element(By.ID, "StartDate")
-    start_date_input.clear()
-    start_date_input.send_keys(formatted_date_no_leading)
-
-    # Kaydet butonunu bulma ve tıklama
-    save_button = driver.find_element(By.CSS_SELECTOR, 'button.btn.btn-primary[name="save"]')
-    save_button.click()
-
-except Exception as e:
-    print(Fore.RED + f"Hata oluştu: {e}" + Style.RESET_ALL)
-finally:
-    # Tarayıcıyı kapat
-    driver.quit()
-
+if __name__ == "__main__":
+    list_detail_with_http_client()
 
 #endregion
 
-#region // Seçim Yapma Alanı
+#region // GMT ve SİTA Verilerini Çekme
 
-etiket_secimi = input("Sadece Sigara Ürünleri mi Çekmek İstiyorsunuz (E/H): ").strip().upper()
+SUPABASE_URL = "https://zmvsatlvobhdaxxgtoap.supabase.co"
+SUPABASE_KEY = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InptdnNhdGx2b2JoZGF4eGd0b2FwIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NDAxNzIxMzksImV4cCI6MjA1NTc0ODEzOX0.lJLudSfixMbEOkJmfv22MsRLofP7ZjFkbGj26xF3dts"
 
-# Kullanıcıdan seçim yapılması
-secim = input(Fore.YELLOW + "\n1. Firma Kodu Bazlı\n2. Ürün Adında Geçen Bir Kelime ya da Kısım\n3. Kumaş Bazlı\n4. Kalıp Bazlı\n5. Kategori Bazlı" + Fore.LIGHTCYAN_EX + "\n6. 1-3 Arası Aktif Ürünler\n7. Raf Ömrü Girme\n8. Etiketleri Girme\n9. Sadeleştirilmiş Kategori Raporu" + Fore.WHITE + "\nSeçim: ")
+supabase: Client = create_client(SUPABASE_URL, SUPABASE_KEY)
 
-if secim == "1":
-    kolon_adi = "UrunAdi"
-    kullanici_input = input("Firma Kodu (Ör: .1234.): ")
-elif secim == "2":
-    kolon_adi = "UrunAdi"
-    kullanici_input = input("Ürün Adında Geçen Bir Kısım  (Ör: Kareli): ")
-elif secim == "3":
-    kolon_adi = "Aciklama"
-    kullanici_input = input("Kumaş (Ör: Kaşkorse): ")
-elif secim == "4":
-    kolon_adi = "Aciklama"
-    kullanici_input = input("Kalıp (Ör: Dar): ")
-elif secim == "5":
-    kolon_adi = "Kategori"
-    kullanici_input = input("Kategori (Ör: YENİ SEZON): ")
+all_data = []
+start = 0
+page_size = 1000
 
-#endregion
+while True:
+    end = start + page_size - 1
+    response = (
+        supabase.table("urunyonetimi")
+        .select("urunkodu, renk, acilmamisadet, gmtsitalabel")
+        .in_("gmtsitalabel", ["GMT", "SİTA", "Yarım GMT"])
+        .gt("acilmamisadet", 0)
+        .range(start, end)
+        .execute()
+    )
+    data = response.data
+    if not data:
+        break
+    all_data.extend(data)
+    start += page_size
 
-#region // Seçim 6 (1-3 Arası Aktif Ürünler)
+df = pd.DataFrame(all_data)
+df["renk"] = df["renk"].apply(lambda x: x.capitalize() if isinstance(x, str) else x)
 
-elif secim == "6":
+df_gmt = df[df["gmtsitalabel"].isin(["GMT", "Yarım GMT"])]
+df_gmt_grouped = df_gmt.groupby(["urunkodu", "renk"], as_index=False)["acilmamisadet"].sum()
 
+df_gmt_final = pd.DataFrame()
+df_gmt_final["GMT Ürün Kodu"] = df_gmt_grouped["urunkodu"]
+df_gmt_final["GMT Ürün Adı"] = df_gmt_grouped["urunkodu"].astype(str) + " - " + df_gmt_grouped["renk"]
+df_gmt_final["GMT Stok Adedi"] = df_gmt_grouped["acilmamisadet"]
+df_gmt_final["GMT Ürün Kodu"] = pd.to_numeric(df_gmt_final["GMT Ürün Kodu"], errors="coerce").astype("Int64")
 
-    # Excel dosyasını indir
-    url = "https://www.siparis.haydigiy.com/FaprikaXls/ODJC6P/1/"
-    response = requests.get(url)
+df_sita = df[df["gmtsitalabel"] == "SİTA"]
+df_sita_grouped = df_sita.groupby(["urunkodu", "renk"], as_index=False)["acilmamisadet"].sum()
 
-    if response.status_code == 200:
-        with open("1-3 Arası Aktif Ürünler.xlsx", "wb") as dosya:
-            dosya.write(response.content)
+df_sita_final = pd.DataFrame()
+df_sita_final["SİTA Ürün Kodu"] = df_sita_grouped["urunkodu"]
+df_sita_final["SİTA Ürün Adı"] = df_sita_grouped["urunkodu"].astype(str) + " - " + df_sita_grouped["renk"]
+df_sita_final["SİTA Stok Adedi"] = df_sita_grouped["acilmamisadet"]
+df_sita_final["SİTA Ürün Kodu"] = pd.to_numeric(df_sita_final["SİTA Ürün Kodu"], errors="coerce").astype("Int64")
 
-        
-        # Excel dosyasını oku
-        df = pd.read_excel("1-3 Arası Aktif Ürünler.xlsx")
-
-        # "UrunAdi" sütunundaki aynı değerlerin "StokAdedi" sütunundaki değerlerini toplayarak yeni bir "ToplamStok" sütunu oluştur
-        df["ToplamStok"] = df.groupby("UrunAdi")["StokAdedi"].transform("sum")
-
-        # "UrunAdi", "AlisFiyati", "SatisFiyati" ve "ToplamStok" sütunlarını sakla, "StokAdedi" sütununu sil
-        columns_to_keep = ["UrunAdi", "AlisFiyati", "SatisFiyati", "ToplamStok"]
-        df = df[columns_to_keep]
-
-        # Sonucu aynı dosya üzerine kaydet
-        df.to_excel("1-3 Arası Aktif Ürünler.xlsx", index=False)
-
-        # Aynı olan satırları teke düşür
-        df.drop_duplicates(inplace=True)
-
-        # Excel dosyasını açın
-        workbook = openpyxl.load_workbook("1-3 Arası Aktif Ürünler.xlsx")
-        
-        # İlk çalışma sayfasını seçin (Varsayılan olarak "Sheet1")
-        sheet = workbook.active
-
-        # Tüm sütunları gezip en uygun genişliği ayarlayın
-        for column in sheet.columns:
-            max_length = 0
-            column_letter = get_column_letter(column[0].column)
-
-            for cell in column:
-                try:
-                    if len(str(cell.value)) > max_length:
-                        max_length = len(str(cell.value))
-                except:
-                    pass
-
-            adjusted_width = (max_length + 2)
-            sheet.column_dimensions[column_letter].width = adjusted_width
-
-        
-        # Değişiklikleri kaydedin
-        workbook.save("1-3 Arası Aktif Ürünler.xlsx")
-
-        # Verileri pandas ile tekrar okuyun
-        df = pd.read_excel("1-3 Arası Aktif Ürünler.xlsx")
-
-        # Aynı olan satırları teke düşür
-        df.drop_duplicates(inplace=True)
-
-        # Değişiklikleri kaydedin
-        df.to_excel("1-3 Arası Aktif Ürünler.xlsx", index=False)
-
-
-        # Excel dosyasını açın
-        workbook = openpyxl.load_workbook("1-3 Arası Aktif Ürünler.xlsx")
-        
-        # İlk çalışma sayfasını seçin (Varsayılan olarak "Sheet1")
-        sheet = workbook.active
-
-        # Tüm sütunları gezip en uygun genişliği ayarlayın
-        for column in sheet.columns:
-            max_length = 0
-            column_letter = get_column_letter(column[0].column)
-
-            for cell in column:
-                try:
-                    if len(str(cell.value)) > max_length:
-                        max_length = len(str(cell.value))
-                except:
-                    pass
-
-            adjusted_width = (max_length + 2)
-            sheet.column_dimensions[column_letter].width = adjusted_width
-
-
-        # Değişiklikleri kaydedin
-        workbook.save("1-3 Arası Aktif Ürünler.xlsx")
-
-
-    exit()  
-
+with pd.ExcelWriter("GMT ve SİTA.xlsx") as writer:
+    df_gmt_final.to_excel(writer, sheet_name="Sheet1", index=False)
+    df_sita_final.to_excel(writer, sheet_name="Sheet2", index=False)
 
 #endregion
 
-#region // Seçim 7 (Raf Ömrü Girme)
+#region // GMT ve SİTA Verilerini Ana Tabloya Çektirme (Etopla Yapma)
 
-elif secim == "7":
-    try:
-        num_parts = int(input("Listeler Kaç Parçaya Bölünsün: "))
-
-        def get_excel_data(url):
-            response = requests.get(url)
-
-            if response.status_code == 200:
-                # Excel dosyasını oku
-                df = pd.read_excel(BytesIO(response.content))
-                return df
-            else:
-                
-                return None
-
-        # İlk linkten veriyi al
-        url1 = "https://www.siparis.haydigiy.com/FaprikaXls/Q07PJA/1/"
-        data1 = get_excel_data(url1)
-
-        # İkinci linkten veriyi al
-        url2 = "https://www.siparis.haydigiy.com/FaprikaXls/Q07PJA/2/"
-        data2 = get_excel_data(url2)
-
-        # İki veriyi birleştir
-        if data1 is not None and data2 is not None:
-            merged_data = pd.concat([data1, data2], ignore_index=True)
-
-            # Gereksiz sütunları sil
-            columns_to_keep = ["ModelKodu", "UrunAdi", "Resim", "VaryasyonHepsiBuradaKodu"]
-            merged_data = merged_data[columns_to_keep]
-
-            # Birleştirilmiş veriyi Excel dosyasına kaydet
-            merged_data.to_excel("birlesmis_veri.xlsx", index=False)
-
-            # Birleştirilmiş veriyi oku
-            final_data = pd.read_excel("birlesmis_veri.xlsx")
-
-        else:
-            pass
-
-
-
-
-
-        # XML'den Ürün Bilgilerini Çekme ve Temizleme
-        xml_url = "https://www.siparis.haydigiy.com/FaprikaXml/SDDI3V/1/"
-        response = requests.get(xml_url)
-        xml_data = response.text
-        soup = BeautifulSoup(xml_data, 'xml')
-
-        product_data = []
-        for item in soup.find_all('item'):
-            title = item.find('title').text.replace(' - Haydigiy', '')
-            product_id = item.find('g:product_type').text if item.find('g:product_type') else None
-            product_data.append({'UrunAdi': title, 'ID': product_id})
-
-        df_xml = pd.DataFrame(product_data)
-
-        # Excel ile Birleştirme
-        df_calisma_alani = pd.read_excel('birlesmis_veri.xlsx')
-        df_merged = pd.merge(df_calisma_alani, df_xml, how='left', left_on='UrunAdi', right_on='UrunAdi')
-
-        # Sonuçları Mevcut Excel Dosyasının Üzerine Kaydetme
-        df_merged.to_excel('birlesmis_veri.xlsx', index=False)
-
-
-
-
-        # Excel dosyasını oku
-        merged_data = pd.read_excel("birlesmis_veri.xlsx")
-
-        # Boş olmayan "VaryasyonHepsiBuradaKodu" sütunlarına sahip satırları filtrele
-        merged_data = merged_data[merged_data["VaryasyonHepsiBuradaKodu"].isna()]
-
-        # Güncellenmiş birleştirilmiş veriyi Excel dosyasına kaydet
-        merged_data.to_excel("birlesmis_veri.xlsx", index=False)
-
-
-
-
-
-        # Excel dosyasını oku
-        merged_data = pd.read_excel("birlesmis_veri.xlsx")
-
-        # Resim sütunundaki ".jpeg" ve sonrasını temizleme
-        merged_data["Resim"] = merged_data["Resim"].str.replace("\.jpeg.*$", "", regex=True)
-
-        # Resim sütunundaki verilere ".jpeg" eklenmesi
-        merged_data["Resim"] = merged_data["Resim"] + ".jpeg"
-
-        # Güncellenmiş birleştirilmiş veriyi Excel dosyasına kaydet
-        merged_data.to_excel("birlesmis_veri.xlsx", index=False)
-
-
-
-
-
-
-        # Excel dosyasını oku
-        merged_data = pd.read_excel("birlesmis_veri.xlsx")
-
-        # Birleşmiş verilerin kopyasını oluştur
-        merged_data_copy = merged_data.copy()
-
-        # İstenmeyen sütunları sil
-        columns_to_drop = ["UrunAdi", "Resim", "VaryasyonHepsiBuradaKodu", "ID"]
-        merged_data_copy.drop(columns=columns_to_drop, inplace=True, errors='ignore')
-
-        # Yenilenen değerleri teke düşür (benzersiz yap)
-        merged_data_copy.drop_duplicates(inplace=True)
-
-        # Yenilenmiş verileri bir dosyaya kaydet
-        merged_data_copy.to_excel("birlesmis_veri_kopya.xlsx", index=False)
-
-
-
-
-        # birlesmis_veri_kopya Excel dosyasını oku
-        kopya_data = pd.read_excel("birlesmis_veri_kopya.xlsx")
-
-        # birlesmis_veri Excel dosyasını oku
-        veri_data = pd.read_excel("birlesmis_veri.xlsx")
-
-        # Karşılık gelen verileri saklamak için bir liste oluştur
-        results = []
-
-        # birlesmis_veri_kopya'daki her bir ModelKodu için
-        for model_kodu in kopya_data["ModelKodu"]:
-            # birlesmis_veri'de ModelKodu'nu ara ve karşılık gelen verileri al
-            match = veri_data[veri_data["ModelKodu"] == model_kodu]
-            if not match.empty:
-                # Karşılık gelen verileri results listesine ekle
-                results.append(match[["ModelKodu", "UrunAdi", "Resim", "ID"]].values.tolist()[0])
-
-        # Sonuçları bir DataFrame'e dönüştür
-        result_df = pd.DataFrame(results, columns=["ModelKodu", "UrunAdi", "Resim", "ID"])
-
-        # "Raf Ömrü" sütununu oluştur ve değerleri atayın
-        result_df["Raf Ömrü (Ör: 12.12.2012-15.15.2013)"] = ["" for _ in range(len(result_df))]  # Örnek olarak hepsine "12 ay" atadım
-
-        # DataFrame'i belirlenen parça sayısına göre bölelim
-        parts = [result_df[i:i+len(result_df)//num_parts] for i in range(0, len(result_df), len(result_df)//num_parts)]
-
-        # Her bir parçayı ayrı bir Excel dosyasına kaydedelim
-        for i, part in enumerate(parts):
-            with pd.ExcelWriter(f"Raf Ömrü {i+1}.xlsx", engine='xlsxwriter') as writer:
-                # Sonuçları yaz
-                part.to_excel(writer, index=False, sheet_name=f'Sheet1')
-                # Excel dosyasının objesini al
-                workbook = writer.book
-                # DataFrame'in sütun başlıklarını al
-                header_format = workbook.add_format({'bold': True, 'text_wrap': True, 'valign': 'top',
-                                                    'fg_color': '#D7E4BC', 'border': 1})
-                # Başlıklara filtre özelliği ekle
-                worksheet = writer.sheets['Sheet1']
-                worksheet.autofilter(0, 0, part.shape[0], part.shape[1] - 1)  # Filtreyi ekle
-                for col_num, value in enumerate(part.columns.values):
-                    worksheet.write(0, col_num, value, header_format)
-                # Tüm sütunların genişliğini ayarla
-                for i, col in enumerate(part.columns):
-                    worksheet.set_column(i, i, 50)
-
-
-
-
-
-        import os
-
-        # Dosya adlarını tanımla
-        dosya1 = "birlesmis_veri.xlsx"
-        dosya2 = "birlesmis_veri_kopya.xlsx"
-
-        # Dosyaları sil
-        try:
-            os.remove(dosya1)
-            os.remove(dosya2)
-        except FileNotFoundError:
-            pass
-        except Exception as e:
-            print(f"Hata oluştu: {e}")
-
-
-    except Exception as e:
-        pass
-
-    exit()
-
+one_cikanlar_df = pd.DataFrame()  # Burada ileride kullanacağımız boş bir DF tanımı (varsa hataya düşmemek için)
 
 #endregion
 
-#region // Seçim 8 (Etiket Girme)
+#region // Ürün Listesi İndirme
 
-elif secim == "8":
+SUPABASE_URL = "https://zmvsatlvobhdaxxgtoap.supabase.co"
+SUPABASE_KEY = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InptdnNhdGx2b2JoZGF4eGd0b2FwIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NDAxNzIxMzksImV4cCI6MjA1NTc0ODEzOX0.lJLudSfixMbEOkJmfv22MsRLofP7ZjFkbGj26xF3dts"
 
-    # İndirilecek dosyanın URL'si
-    url = "https://drive.usercontent.google.com/u/0/uc?id=1k0F9qUAc9YC09su3THqHZSbIXOy2kgzj&export=download"
+# Supabase istemcisini oluştur
+supabase: Client = create_client(SUPABASE_URL, SUPABASE_KEY)
 
-    # Dosya adını tarih ve "Etiketler" ile belirleme
-    today = datetime.now().strftime("%d.%m.%Y")
-    file_name = "Etiketler.xlsx"
+# Storage üzerinden "tum_urun_listesi.xlsx" dosyasını indir
+# BUCKET_ADINIZ kısmını ve dosya yolunu kendi projenize göre düzenleyin.
+response = supabase.storage.from_("tum_urun_listesi").download("tum_urun_listesi.xlsx")
 
-    # İstek gönderip dosyayı indirme
-    with open(file_name, "wb") as file:
-        file.write(requests.get(url).content)
+# Okunacak veriyi BytesIO aracılığıyla pandas'a aktar
+temp_df = pd.read_excel(BytesIO(response))
 
-    # İndirilecek linkler
-    links = [
-        "https://www.siparis.haydigiy.com/FaprikaXls/NVWVZB/1/",
-        "https://www.siparis.haydigiy.com/FaprikaXls/NVWVZB/2/",
-        "https://www.siparis.haydigiy.com/FaprikaXls/NVWVZB/3/"
+# "UrunAdi" sütununda "-" karakteri içeren satırları filtreleyelim
+filtered_rows = temp_df[
+    temp_df["UrunAdi"].astype(str).str.contains(re.escape("-"), case=False, na=False)
+]
+
+# Filtrelenmiş DataFrame boş değilse belirli sütunları seçip çıktı alıyoruz
+if not filtered_rows.empty:
+    selected_columns = [
+        "UrunAdi", 
+        "StokAdedi", 
+        "AlisFiyati", 
+        "SatisFiyati", 
+        "Kategori",
+        "Resim", 
+        "AramaTerimleri", 
+        "MorhipoKodu", 
+        "VaryasyonMorhipoKodu",
+        "HepsiBuradaKodu", 
+        "Marka", 
+        "N11Kodu", 
+        "VaryasyonGittiGidiyorKodu",
+        "TrendyolKodu",
+        "VaryasyonTrendyolKodu"
     ]
-
-    # Excel dosyalarını indirip birleştirme
-    dfs = [pd.read_excel(BytesIO(requests.get(link).content)) for link in links]
-
-    # Tüm dosyaları birleştirme
-    merged_df = pd.concat(dfs, ignore_index=True)
-
-    # Sonuç DataFrame'i tek bir Excel dosyasına yazma
-    merged_df.to_excel("birlesmis_excel.xlsx", index=False)
-
-    # Dosyaların yolları
-    birlesmis_excel_path = "birlesmis_excel.xlsx"
-    etiketler_excel_path = "Etiketler.xlsx"
-
-    # Dosya adını tarih ve "Etiketler" ile belirleme
-    today = datetime.now().strftime("%d.%m.%Y")
-    etiketler_file_name = f"{today} Etiketler.xlsx"
-
-    # Excel dosyalarını yükleme
-    birlesmis_wb = load_workbook(birlesmis_excel_path)
-    etiketler_wb = load_workbook(etiketler_excel_path)
-
-    # İlgili sayfaları seçme
-    birlesmis_ws = birlesmis_wb.active  # Birleşmiş Excel'in ilk sayfası
-    etiketler_ws = etiketler_wb["İşleme Alanı"]  # Etiketler Excel'indeki "İşleme Alanı" sayfası
-
-    # Birleşmiş Excel dosyasındaki A, F, R, P sütunlarını al
-    birlesmis_a_column = [cell.value for cell in birlesmis_ws['A']]  # A sütunu
-    birlesmis_f_column = [cell.value for cell in birlesmis_ws['F']]  # F sütunu
-    birlesmis_r_column = [cell.value for cell in birlesmis_ws['R']]  # R sütunu
-    birlesmis_p_column = [cell.value for cell in birlesmis_ws['P']]  # P sütunu
-
-    # Etiketler dosyasındaki B, G, S, Q sütunlarına verileri olduğu gibi yapıştırma
-    for i in range(len(birlesmis_a_column)):
-        etiketler_ws.cell(row=i+1, column=2, value=birlesmis_a_column[i])  # B sütunu
-        etiketler_ws.cell(row=i+1, column=7, value=birlesmis_f_column[i])  # G sütunu
-        etiketler_ws.cell(row=i+1, column=19, value=birlesmis_r_column[i])  # S sütunu
-        etiketler_ws.cell(row=i+1, column=17, value=birlesmis_p_column[i])  # Q sütunu
-
-    # Yeni Excel dosyasını kaydetme
-    etiketler_wb.save(etiketler_file_name)
-
-    # Birleşmiş Excel dosyasını silme
-    os.remove(birlesmis_excel_path)
-
-
-    exit()
-
-#endregion
-
-#region // Seçim 9 (Sadeleştrilimiş Kategori Raporu)
-
-elif secim == "9":
-
-    # 1. Google Sheet'ten veriyi indir ve Excel'e kaydet
-    google_sheet_url = "https://docs.google.com/spreadsheets/d/1AfTzgMZTR9bpnH8d1-9fOw06wZRyUK3Lf-BBZjnNSZU/export?format=csv&gid=485735906"
-    try:
-        google_df = pd.read_csv(google_sheet_url)
-        report_excel_file = "Veri 1.xlsx"
-        google_df.to_excel(report_excel_file, index=False)
-    except Exception as e:
-        print(f"Google Sheets'ten veri indirilirken veya Excel'e kaydedilirken hata oluştu: {e}")
-        exit()
-
-    # 2. Google Drive'dan ikinci Excel dosyasını indir
-    file_id = "1V1gbJDpmhVPnfXC1uA4ewmnOyXllEKQt"
-    download_url = f"https://drive.google.com/uc?id={file_id}"
-    sales_excel_file = "Sadeleştirilmiş Kategori Satış Raporu.xlsx"
-
-    try:
-        gdown.download(download_url, sales_excel_file, quiet=False)
-    except Exception as e:
-        print(f"Dosya indirilirken bir hata oluştu: {e}")
-        exit()
-
-    # 3. İndirilen dosyanın geçerli bir Excel dosyası olup olmadığını kontrol et
-    def is_valid_excel(file_path):
-        try:
-            with zipfile.ZipFile(file_path, 'r') as zip_ref:
-                return True
-        except zipfile.BadZipFile:
-            return False
-
-    if is_valid_excel(sales_excel_file):
-        pass
-    else:
-        print(f"{sales_excel_file} geçerli bir Excel dosyası değildir. Lütfen indirme bağlantısını ve dosya erişim izinlerini kontrol edin.")
-        exit()
-
-    # 4. İlk Excel dosyasını (Google Sheets'ten gelen) oku
-    try:
-        report_df = pd.read_excel(report_excel_file, engine='openpyxl')
-    except Exception as e:
-        print(f"{report_excel_file} dosyası okunurken hata oluştu: {e}")
-        exit()
-
-    # 5. İkinci Excel dosyasını (Google Drive'dan gelen) yükle
-    try:
-        sales_book = load_workbook(sales_excel_file)
-    except Exception as e:
-        print(f"{sales_excel_file} dosyası yüklenirken hata oluştu: {e}")
-        exit()
-
-    # 6. "Openpyxl" sayfasını oluştur veya mevcut sayfayı seç
-    sheet_name = "Openpyxl"
-    if sheet_name in sales_book.sheetnames:
-        openpyxl_sheet = sales_book[sheet_name]
-    else:
-        openpyxl_sheet = sales_book.create_sheet(sheet_name)
-
-
-    # 7. Hedef sayfayı temizlemek (varsa mevcut verileri silmek)
-    for row in openpyxl_sheet.iter_rows(min_row=1, max_row=openpyxl_sheet.max_row, max_col=openpyxl_sheet.max_column):
-        for cell in row:
-            cell.value = None
-
-    # 8. Başlıkları ilk satıra yaz
-    for col_num, column_title in enumerate(report_df.columns, 1):
-        openpyxl_sheet.cell(row=1, column=col_num, value=column_title)
-
-    # 9. Verileri ikinci satırdan itibaren yaz
-    for row_num, row_data in enumerate(report_df.values.tolist(), start=2):
-        for col_num, cell_value in enumerate(row_data, 1):
-            openpyxl_sheet.cell(row=row_num, column=col_num, value=cell_value)
-
-    # 10. Değişiklikleri kaydet
-    try:
-        sales_book.save(sales_excel_file)
-    except Exception as e:
-        print(f"{sales_excel_file} dosyasına veri kaydedilirken hata oluştu: {e}")
-        exit()
-
-
-
-    # =========================
-    # 1) Formülleri değere çevirme
-    # =========================
-
-    sheet_name_to_convert = "Sadeleşmiş Kategori Satış Rapor"
-    full_path = os.path.abspath(sales_excel_file)  # sales_excel_file: "Sadeleştirilmiş Kategori Satış Raporu.xlsx"
-
-    try:
-        excel_app = win32.Dispatch("Excel.Application")
-        excel_app.Visible = False  # Arka planda çalıştır
-
-        wb = excel_app.Workbooks.Open(full_path)
-        ws = wb.Worksheets(sheet_name_to_convert)
-        
-        # Tüm formülleri değerlere dönüştür
-        used_range = ws.UsedRange
-        used_range.Copy()
-        used_range.PasteSpecial(-4163)  # -4163 => xlPasteValues
-
-        # =========================
-        # 2) A sütununda ilk boş hücreyi bul, o satırdan sonrası sil
-        # =========================
-
-        # A sütununda en yukarıdan başlayarak ilk boş satırı bulalım
-        row = 1
-        while True:
-            cell_value = ws.Cells(row, 1).Value
-            # Boş ya da None ise ilk boş hücre bulundu
-            if cell_value in [None, ""]:
-                break
-            row += 1
-
-        # row => ilk boş satırın index’i
-        # Kullanılan son satırı bulmak için
-        last_used_row = ws.UsedRange.Row + ws.UsedRange.Rows.Count - 1
-
-        # Eğer row <= last_used_row ise, o satırdan sonuna kadar silebiliriz
-        if row <= last_used_row:
-            ws.Range(f"{row}:{last_used_row}").Delete()  # satırları sil
-
-        # =========================
-        # 3) "Openpyxl" sayfasını gizle
-        # =========================
-        try:
-            openpyxl_sheet = wb.Worksheets("Openpyxl")
-            # 0 => xlSheetHidden, 2 => xlSheetVeryHidden
-            openpyxl_sheet.Visible = 0  
-        except Exception:
-            print("'Openpyxl' isminde bir sayfa bulunamadı, atlanıyor...")
-
-        # =========================
-        # 4) Dosyayı kaydet ve kapat (win32com)
-        # =========================
-        wb.Save()
-        wb.Close()
-        excel_app.Quit()
-
-
-
-    except Exception as e:
-        print(f"Formülleri değerlere dönüştürmede veya ek işlemlerde hata oluştu: {e}")
-
-
-    # =========================
-    # 5) "Veri 1.xlsx" dosyasını sil
-    # =========================
-    try:
-        os.remove("Veri 1.xlsx")
-    except FileNotFoundError:
-        print("Veri 1.xlsx bulunamadı, zaten silinmiş olabilir.")
-    except Exception as e:
-        print(f"Veri 1.xlsx silinirken bir hata oluştu: {e}")
-
-    # =========================
-    # 6) Excel dosyasını tarih ön ekiyle yeniden adlandır
-    # =========================
-    today_str = datetime.now().strftime("%d.%m.%Y")  # GG.AA.YYYY formatı
-    new_file_name = f"{today_str} Sadeleşmiş Rapor.xlsx"
-
-    try:
-        # Sadeleştirilmiş Kategori Satış Raporu.xlsx -> "30.01.2025 Sadeleşmiş Rapor.xlsx"
-        os.rename(sales_excel_file, new_file_name)
-    except Exception as e:
-        print(f"Dosya yeniden adlandırılırken bir hata oluştu: {e}")
-
-
-
+    final_df = filtered_rows[selected_columns]
+    final_df.to_excel("sonuc_excel.xlsx", index=False)
 else:
-    print("Geçersiz seçim.")
-    exit()
-
-#endregion
-
-#region // Sadece Etiketli Ürünler mi Sorusu ve Ürün Listesi İndirme
-
-# İndirilecek linkler
-if etiket_secimi == "E":
-    links = ["https://www.siparis.haydigiy.com/FaprikaXls/B0JC0W/1/"]
-else:
-    links = [
-        "https://www.siparis.haydigiy.com/FaprikaXls/ZIMVGV/1/",
-        "https://www.siparis.haydigiy.com/FaprikaXls/ZIMVGV/2/",
-        "https://www.siparis.haydigiy.com/FaprikaXls/ZIMVGV/3/"
-
-
-    ]
-
-# Excel dosyalarını indirip birleştirme
-dfs = []
-for link in links:
-    response = requests.get(link)
-    if response.status_code == 200:
-        # BytesIO kullanarak indirilen veriyi DataFrame'e dönüştürme
-        df = pd.read_excel(BytesIO(response.content))
-        
-        # Belirli sütunu ve kullanıcının girdiği değeri içeren satırları seçme
-        selected_rows = df[df[kolon_adi].astype(str).str.contains(re.escape(kullanici_input), case=False, na=False)]
-        dfs.append(selected_rows)
-    else:
-        print(f"Hata: {response.status_code} - {link}")
-
-# Tüm seçilen verileri birleştirme
-if dfs:
-    final_df = pd.concat(dfs, ignore_index=True)
-else:
-    print("Uygun veri bulunamadı.")
-
-
-# Seçilen sütunu içeren satırları birleştirme
-merged_df = pd.concat(dfs, ignore_index=True)
-
-# Belirli başlıklar dışındaki sütunları silme
-selected_columns = ["UrunAdi", "StokAdedi", "AlisFiyati", "SatisFiyati", "Kategori", "Resim", "AramaTerimleri", "MorhipoKodu", "VaryasyonMorhipoKodu", "HepsiBuradaKodu", "Marka", "N11Kodu", "VaryasyonGittiGidiyorKodu"]
-filtered_df = merged_df[selected_columns]
-
-# Sonuç DataFrame'i tek bir Excel dosyasına yazma
-filtered_df.to_excel("sonuc_excel.xlsx", index=False)
-
-clear_previous_line()
-
-print(Fore.GREEN + "BAŞARILI - Ürün Listesi İndirme ve Sütun Ayarlamaları (1/32)")
+    # Hiç kayıt yoksa boş bir Excel oluştur
+    pd.DataFrame().to_excel("sonuc_excel.xlsx", index=False)
 
 #endregion
 
 #region // Ürünlerin Kategorilerini Belirleme ve Tesettür Ayarlaması
 
-# Excel dosyasını okuma
 df = pd.read_excel("sonuc_excel.xlsx")
-
-# NaN değerleri boş string ile doldurma
 df['Kategori'] = df['Kategori'].fillna("")
 
-# Kategori sütunundan istenilen kısmı ayıklama fonksiyonu
 def extract_category(text):
     if not isinstance(text, str):
         return None
@@ -855,622 +268,367 @@ def extract_category(text):
         return "TESETTÜR"
     return None
 
-# Yeni bir sütun oluşturup ayıklanan veriyi ekleme
 df['Kategori'] = df['Kategori'].apply(extract_category)
-
-# Yeni DataFrame'i bir Excel dosyasına kaydetme
 df.to_excel("sonuc_excel.xlsx", index=False)
-
-clear_previous_line()
-
-print(Fore.GREEN + "BAŞARILI - Ürünlerin Kategorilerini Belirleme ve Tesettür Ayarlaması (2/32)")
 
 #endregion
 
 #region // UrunAdi Duzenleme Sütununu Oluşturma ve Sadece Ürün Kodlarını Bırakma
 
-# Excel dosyasını oku
-sonuc_excel_file = "sonuc_excel.xlsx"
-sonuc_df = pd.read_excel(sonuc_excel_file)
+sonuc_df = pd.read_excel("sonuc_excel.xlsx")
 
-# Ürün kodunu ayıklamak için fonksiyon
 def extract_product_code(urun_adi):
-    match = re.search(r' - (\d+)\.', urun_adi)  # " - " ile "." arasındaki sayıyı yakala
+    match = re.search(r' - (\d+)\.', urun_adi)
     return match.group(1) if match else None
 
-# Renk bilgisini ayıklamak için fonksiyon
 def extract_color(urun_adi):
-    # " - " ibaresiyle parçala (ilk kısım ürün adı, 2. kısım kod)
     parts = re.split(r' - ', urun_adi)
     if len(parts) > 0:
-        # ' - ' öncesindeki kısmı alıp son kelimeyi renk olarak yakala
         before_part = parts[0].strip()
         words = before_part.split()
         if words:
             return words[-1]
     return None
 
-# Yeni sütun oluştur (Ürün kodu)
 sonuc_df['UrunAdi Duzenleme'] = sonuc_df['UrunAdi'].apply(extract_product_code)
 sonuc_df['UrunAdi Duzenleme'] = sonuc_df['UrunAdi Duzenleme'].astype(str)
 
-# "UrunAdi ve Renk" sütunu oluştur
 sonuc_df['UrunAdi ve Renk'] = sonuc_df.apply(
     lambda row: row['UrunAdi Duzenleme'] + " - " + extract_color(row['UrunAdi']),
     axis=1
 )
 
-# Güncellenmiş DataFrame'i aynı Excel dosyasına kaydet
-updated_excel_file = "sonuc_excel.xlsx"
-sonuc_df.to_excel(updated_excel_file, index=False)
-
-# Ekrana başarı mesajını yazdır
-print(Fore.GREEN + "BAŞARILI - 'UrunAdi Duzenleme' ve 'UrunAdi ve Renk' Sütunları Oluşturuldu (3/32)")
-
-#endregion
-
-#region // GMT ve SİTA Verilerini Çekme
-
-
-import pandas as pd
-from supabase import create_client, Client
-from colorama import Fore
-
-# Supabase bağlantı bilgileri
-SUPABASE_URL = "https://zmvsatlvobhdaxxgtoap.supabase.co"
-SUPABASE_KEY = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InptdnNhdGx2b2JoZGF4eGd0b2FwIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NDAxNzIxMzksImV4cCI6MjA1NTc0ODEzOX0.lJLudSfixMbEOkJmfv22MsRLofP7ZjFkbGj26xF3dts"
-
-# Supabase istemcisini oluştur
-supabase: Client = create_client(SUPABASE_URL, SUPABASE_KEY)
-
-# Pagination yöntemiyle tüm verileri çekmek için:
-all_data = []
-start = 0
-page_size = 1000
-
-while True:
-    end = start + page_size - 1  # range metodu dahil aralık belirler
-    response = supabase.table("urunyonetimi")\
-        .select("urunkodu, renk, acilmamisadet, gmtsitalabel")\
-        .in_("gmtsitalabel", ["GMT", "SİTA", "Yarım GMT"])\
-        .gt("acilmamisadet", 0)\
-        .range(start, end)\
-        .execute()
-    
-    data = response.data
-    if not data:
-        break
-    
-    all_data.extend(data)
-    start += page_size
-
-# Gelen verileri DataFrame'e çevir
-df = pd.DataFrame(all_data)
-
-# Renk kolonunu "baş harfi büyük, gerisi küçük" olacak şekilde düzenle
-df["renk"] = df["renk"].apply(lambda x: x.capitalize() if isinstance(x, str) else x)
-
-# -----------------
-# GMT & Yarım GMT işlemleri (Sheet1)
-# -----------------
-
-# 1) "gmtsitalabel" değeri GMT veya Yarım GMT olanları filtrele
-df_gmt = df[df["gmtsitalabel"].isin(["GMT", "Yarım GMT"])]
-
-# 2) Aynı urunkodu ve renk için "acilmamisadet" değerini topla
-df_gmt_grouped = df_gmt.groupby(["urunkodu", "renk"], as_index=False)["acilmamisadet"].sum()
-
-# 3) Son DataFrame'i, istenen kolon adlarıyla oluştur
-df_gmt_final = pd.DataFrame()
-df_gmt_final["GMT Ürün Kodu"] = df_gmt_grouped["urunkodu"]
-df_gmt_final["GMT Ürün Adı"] = df_gmt_grouped["urunkodu"].astype(str) + " - " + df_gmt_grouped["renk"]
-df_gmt_final["GMT Stok Adedi"] = df_gmt_grouped["acilmamisadet"]
-
-# Ürün kodlarını sayısal (integer) formata çevir
-df_gmt_final["GMT Ürün Kodu"] = pd.to_numeric(df_gmt_final["GMT Ürün Kodu"], errors="coerce").astype("Int64")
-
-# -----------------
-# SİTA işlemleri (Sheet2)
-# -----------------
-
-# 1) "gmtsitalabel" değeri SİTA olanları filtrele
-df_sita = df[df["gmtsitalabel"] == "SİTA"]
-
-# 2) Aynı urunkodu ve renk için "acilmamisadet" değerini topla
-df_sita_grouped = df_sita.groupby(["urunkodu", "renk"], as_index=False)["acilmamisadet"].sum()
-
-# 3) Son DataFrame'i, istenen kolon adlarıyla oluştur
-df_sita_final = pd.DataFrame()
-df_sita_final["SİTA Ürün Kodu"] = df_sita_grouped["urunkodu"]
-df_sita_final["SİTA Ürün Adı"] = df_sita_grouped["urunkodu"].astype(str) + " - " + df_sita_grouped["renk"]
-df_sita_final["SİTA Stok Adedi"] = df_sita_grouped["acilmamisadet"]
-
-# Ürün kodlarını sayısal (integer) formata çevir
-df_sita_final["SİTA Ürün Kodu"] = pd.to_numeric(df_sita_final["SİTA Ürün Kodu"], errors="coerce").astype("Int64")
-
-# -----------------
-# Excel'e Yazma
-# -----------------
-with pd.ExcelWriter("GMT ve SİTA.xlsx") as writer:
-    df_gmt_final.to_excel(writer, sheet_name="Sheet1", index=False)
-    df_sita_final.to_excel(writer, sheet_name="Sheet2", index=False)
-
-print(Fore.GREEN + "Veriler çekildi ve dönüştürülerek Excel'e yazıldı.")
-
-
+sonuc_df.to_excel("sonuc_excel.xlsx", index=False)
 
 #endregion
 
 #region // GMT ve SİTA Verilerini Ana Tabloya Çektirme (Etopla Yapma)
 
-# Ana tabloyu oku
-sonuc_excel_file = "sonuc_excel.xlsx"
-sonuc_df = pd.read_excel(sonuc_excel_file)
+df_calisma_alani = pd.read_excel("sonuc_excel.xlsx")
 
-# Kaynak dosyayı, GMT verileri için Sheet1 ve SİTA verileri için Sheet2 şeklinde oku
-source_excel_file = "GMT ve SİTA.xlsx"
-gmt_df = pd.read_excel(source_excel_file, sheet_name="Sheet1")
-sita_df = pd.read_excel(source_excel_file, sheet_name="Sheet2")
+gmt_df = pd.read_excel("GMT ve SİTA.xlsx", sheet_name="Sheet1")
+sita_df = pd.read_excel("GMT ve SİTA.xlsx", sheet_name="Sheet2")
 
-# -------------------------------------------------------------------
-# 1. Adım: 'UrunAdi' sütunu üzerinden eşleşme (doğrudan eşleme)
-# -------------------------------------------------------------------
 used_gmt_indices_step1 = []
 used_sita_indices_step1 = []
 
-for idx, row in sonuc_df.iterrows():
+for idx, row in df_calisma_alani.iterrows():
     urun_adi = row['UrunAdi ve Renk']
     
-    # GMT eşlemesi: Sheet1'deki 'GMT Ürün Adı' sütunu
     matching_gmt = gmt_df[gmt_df['GMT Ürün Adı'] == urun_adi]
     if not matching_gmt.empty:
         matched_index = matching_gmt.index[0]
-        sonuc_df.at[idx, 'GMT Stok Adedi'] = matching_gmt.iloc[0]['GMT Stok Adedi']
+        df_calisma_alani.at[idx, 'GMT Stok Adedi'] = matching_gmt.iloc[0]['GMT Stok Adedi']
         used_gmt_indices_step1.append(matched_index)
     else:
-        sonuc_df.at[idx, 'GMT Stok Adedi'] = None
+        df_calisma_alani.at[idx, 'GMT Stok Adedi'] = None
 
-    # SİTA eşlemesi: Sheet2'deki 'SİTA Ürün Adı' sütunu
     matching_sita = sita_df[sita_df['SİTA Ürün Adı'] == urun_adi]
     if not matching_sita.empty:
         matched_index = matching_sita.index[0]
-        sonuc_df.at[idx, 'SİTA Stok Adedi'] = matching_sita.iloc[0]['SİTA Stok Adedi']
+        df_calisma_alani.at[idx, 'SİTA Stok Adedi'] = matching_sita.iloc[0]['SİTA Stok Adedi']
         used_sita_indices_step1.append(matched_index)
     else:
-        sonuc_df.at[idx, 'SİTA Stok Adedi'] = None
+        df_calisma_alani.at[idx, 'SİTA Stok Adedi'] = None
 
-# Eşleşen satırları kaynak DataFrame’lerden kaldır (Adım 1)
 gmt_df = gmt_df.drop(used_gmt_indices_step1).reset_index(drop=True)
 sita_df = sita_df.drop(used_sita_indices_step1).reset_index(drop=True)
 
-# -------------------------------------------------------------------
-# 2. Adım: 'UrunAdi Duzenleme' sütunu üzerinden, stok bilgisi boş veya sıfır olan satırlarda kod eşlemesi
-# -------------------------------------------------------------------
 used_gmt_indices_step2 = []
 used_sita_indices_step2 = []
 
-for idx, row in sonuc_df.iterrows():
+for idx, row in df_calisma_alani.iterrows():
     urun_kodu = row['UrunAdi Duzenleme']
     
-    # GMT için: stok bilgisi boş ya da sıfır ise, 'GMT Ürün Kodu' üzerinden eşle
-    if pd.isna(row['GMT Stok Adedi']) or row['GMT Stok Adedi'] == 0:
+    if pd.isna(row.get('GMT Stok Adedi')) or row.get('GMT Stok Adedi') == 0:
         matching_gmt_code = gmt_df[gmt_df['GMT Ürün Kodu'] == urun_kodu]
         if not matching_gmt_code.empty:
             matched_index = matching_gmt_code.index[0]
             gmt_stok = matching_gmt_code.iloc[0]['GMT Stok Adedi']
-            sonuc_df.at[idx, 'GMT Stok Adedi'] = "GMT'de Var" if gmt_stok > 0 else gmt_stok
+            df_calisma_alani.at[idx, 'GMT Stok Adedi'] = "GMT'de Var" if gmt_stok > 0 else gmt_stok
             used_gmt_indices_step2.append(matched_index)
-    
-    # SİTA için: stok bilgisi boş ya da sıfır ise, 'SİTA Ürün Kodu' üzerinden eşle
-    if pd.isna(row['SİTA Stok Adedi']) or row['SİTA Stok Adedi'] == 0:
+
+    if pd.isna(row.get('SİTA Stok Adedi')) or row.get('SİTA Stok Adedi') == 0:
         matching_sita_code = sita_df[sita_df['SİTA Ürün Kodu'] == urun_kodu]
         if not matching_sita_code.empty:
             matched_index = matching_sita_code.index[0]
             sita_stok = matching_sita_code.iloc[0]['SİTA Stok Adedi']
-            sonuc_df.at[idx, 'SİTA Stok Adedi'] = "SİTA'da Var" if sita_stok > 0 else sita_stok
+            df_calisma_alani.at[idx, 'SİTA Stok Adedi'] = "SİTA'da Var" if sita_stok > 0 else sita_stok
             used_sita_indices_step2.append(matched_index)
 
-# Eşleşen satırları kaynak DataFrame’lerden kaldır (Adım 2)
 gmt_df = gmt_df.drop(used_gmt_indices_step2).reset_index(drop=True)
 sita_df = sita_df.drop(used_sita_indices_step2).reset_index(drop=True)
 
-# -------------------------------------------------------------------
-# Güncellenmiş ana tabloyu kaydet
-# -------------------------------------------------------------------
-sonuc_df.to_excel("sonuc_excel.xlsx", index=False)
+df_calisma_alani.to_excel("sonuc_excel.xlsx", index=False)
 
-# Güncellenmiş kaynak dosyayı, GMT verileri için Sheet1 ve SİTA verileri için Sheet2 şeklinde kaydet
 with pd.ExcelWriter("GMT ve SİTA.xlsx", engine='openpyxl') as writer:
     gmt_df.to_excel(writer, sheet_name='Sheet1', index=False)
     sita_df.to_excel(writer, sheet_name='Sheet2', index=False)
-
-clear_previous_line()  # Bu fonksiyonun tanımlı olduğunu varsayıyoruz
-
-print(Fore.GREEN + "BAŞARILI - GMT ve SİTA Verilerini Ana Tabloya Çektirme (5/32)")
-
-
-
 
 #endregion
 
 #region // Stok Adedi Sütunu İçin Etopla Yapma - Stok Adedi Her Şey Dahil ve Stok Adedi Site ve Vega Sütunlarını Oluşturma - Bazı Sütunların Adını Değiştirme
 
-# "sonuc_excel.xlsx" Excel dosyasını oku
-df_calisma_alani = pd.read_excel('sonuc_excel.xlsx')
-
-# Aynı "UrunAdi" hücrelerinin "StokAdedi" sayılarını toplama
+df_calisma_alani = pd.read_excel("sonuc_excel.xlsx")
 df_calisma_alani.loc[:, "StokAdedi"] = df_calisma_alani.groupby("UrunAdi")["StokAdedi"].transform("sum")
 
-# "VaryasyonMorhipoKodu" sütununun adını değiştirme
 df_calisma_alani = df_calisma_alani.rename(columns={"VaryasyonMorhipoKodu": "N11 & Zimmet"})
 
-# Hesaplamalarda metinsel verileri sıfır olarak ele almak için sayısal değerlere dönüştürme
-# Orijinal veri bozulmadan yalnızca matematiksel işlemler için geçici sütunlar kullanılıyor
 gmt_numeric = pd.to_numeric(df_calisma_alani["GMT Stok Adedi"], errors="coerce").fillna(0)
 sita_numeric = pd.to_numeric(df_calisma_alani["SİTA Stok Adedi"], errors="coerce").fillna(0)
 stok_adedi_numeric = pd.to_numeric(df_calisma_alani["StokAdedi"], errors="coerce").fillna(0)
 n11_zimmet_numeric = pd.to_numeric(df_calisma_alani["N11 & Zimmet"], errors="coerce").fillna(0)
 
-# "Toplam Stok Adedi" sütunlarını oluşturma
 df_calisma_alani["Stok Adedi Her Şey Dahil"] = stok_adedi_numeric + n11_zimmet_numeric + gmt_numeric + sita_numeric
 df_calisma_alani["Stok Adedi Site ve Vega"] = stok_adedi_numeric + n11_zimmet_numeric
 
-# Eksik değerleri sıfır ile doldurma (diğer sütunlar için)
 df_calisma_alani['StokAdedi'].fillna(0, inplace=True)
 df_calisma_alani['N11 & Zimmet'].fillna(0, inplace=True)
 df_calisma_alani['GMT Stok Adedi'].fillna(0, inplace=True)
 df_calisma_alani['SİTA Stok Adedi'].fillna(0, inplace=True)
 
-# Güncellenmiş DataFrame'i yeni bir Excel dosyasına kaydet
-updated_excel_file = "sonuc_excel.xlsx"
-df_calisma_alani.to_excel(updated_excel_file, index=False)
-
-clear_previous_line()
-
-print(Fore.GREEN + "BAŞARILI - Stok Adedi Sütunu İçin Etopla Yapma (6/32)")
-
-clear_previous_line()
-
-print(Fore.GREEN + "Stok Adedi Her Şey Dahil ve Stok Adedi Site ve Vega Sütunlarını Oluşturma")
-
-clear_previous_line()
-
-print(Fore.GREEN + "Bazı Sütunların Adını Değiştirme")
+df_calisma_alani.to_excel("sonuc_excel.xlsx", index=False)
 
 #endregion
 
 #region // MorhipoKodu Sütununun Adını Değiştirme ve Kaç Güne Biter Kısımlarını Hesaplama
 
-# "MorhipoKodu" sütununun adını değiştirme /Komplo orduların
+df_calisma_alani = pd.read_excel("sonuc_excel.xlsx")
 df_calisma_alani = df_calisma_alani.rename(columns={"MorhipoKodu": "Günlük Ortalama Satış Adedi"})
 df_calisma_alani['Günlük Ortalama Satış Adedi'].fillna(0, inplace=True)
 
-# "Kaç Güne Biter" sütununu oluşturma ve "Toplam Stok Adedi" sütunundaki verileri "Günlük Ortalama Satış Adedi" sütunundaki verilere bölme işlemi
-df_calisma_alani["Kaç Güne Biter Her Şey Dahil"] = "Satış Adedi Yok"  # Varsayılan değer olarak "Satış Adedi Yok" atanır
-df_calisma_alani["Kaç Güne Biter Site ve Vega"] = "Satış Adedi Yok"  # Varsayılan değer olarak "Satış Adedi Yok" atanır
-
+df_calisma_alani["Kaç Güne Biter Her Şey Dahil"] = "Satış Adedi Yok"
+df_calisma_alani["Kaç Güne Biter Site ve Vega"] = "Satış Adedi Yok"
 
 non_zero_mask = df_calisma_alani["Günlük Ortalama Satış Adedi"] != 0
-df_calisma_alani.loc[non_zero_mask, "Kaç Güne Biter Her Şey Dahil"] = round(df_calisma_alani["Stok Adedi Her Şey Dahil"] / df_calisma_alani["Günlük Ortalama Satış Adedi"])
-
+df_calisma_alani.loc[non_zero_mask, "Kaç Güne Biter Her Şey Dahil"] = round(
+    df_calisma_alani["Stok Adedi Her Şey Dahil"] / df_calisma_alani["Günlük Ortalama Satış Adedi"]
+)
 
 non_zero_mask = df_calisma_alani["Günlük Ortalama Satış Adedi"] != 0
-df_calisma_alani.loc[non_zero_mask, "Kaç Güne Biter Site ve Vega"] = round(df_calisma_alani["Stok Adedi Site ve Vega"] / df_calisma_alani["Günlük Ortalama Satış Adedi"])
+df_calisma_alani.loc[non_zero_mask, "Kaç Güne Biter Site ve Vega"] = round(
+    df_calisma_alani["Stok Adedi Site ve Vega"] / df_calisma_alani["Günlük Ortalama Satış Adedi"]
+)
 
-clear_previous_line()
-
-print(Fore.GREEN + "BAŞARILI - MorhipoKodu Sütununun Adını Değiştirme ve Kaç Güne Biter Kısımlarını Hesaplama (7/32)")
+df_calisma_alani.to_excel("sonuc_excel.xlsx", index=False)
 
 #endregion
 
 #region // Görüntülenmenin Satışa Dönüş Oranını Hesaplama
 
-# "Görüntülenmenin Satışa Dönüş Oranı" sütunu
-df_calisma_alani["Görüntülenmenin Satışa Dönüş Oranı"] = "0"  # Varsayılan değer olarak "Satış Yok" atanır
+df_calisma_alani = pd.read_excel("sonuc_excel.xlsx")
+df_calisma_alani["Görüntülenmenin Satışa Dönüş Oranı"] = "0"
 df_calisma_alani = df_calisma_alani.rename(columns={"HepsiBuradaKodu": "Ortalama Görüntülenme Adedi"})
 df_calisma_alani['Ortalama Görüntülenme Adedi'].fillna(0, inplace=True)
+
 non_zero_mask = df_calisma_alani["Ortalama Görüntülenme Adedi"] != 0
-df_calisma_alani.loc[non_zero_mask, "Görüntülenmenin Satışa Dönüş Oranı"] = round((df_calisma_alani["Günlük Ortalama Satış Adedi"] / df_calisma_alani["Ortalama Görüntülenme Adedi"]) * 100, 2)
+df_calisma_alani.loc[non_zero_mask, "Görüntülenmenin Satışa Dönüş Oranı"] = round(
+    (df_calisma_alani["Günlük Ortalama Satış Adedi"] / df_calisma_alani["Ortalama Görüntülenme Adedi"]) * 100, 2
+)
 
-# Değişiklikleri kaydetmek için dosyayı yeniden yaz
 df_calisma_alani.to_excel("sonuc_excel.xlsx", index=False)
-
-clear_previous_line()
-
-print(Fore.GREEN + "BAŞARILI - Görüntülenmenin Satışa Dönüş Oranını Hesaplama (8/32)")
 
 #endregion
 
 #region // Satış Raporunu İndirme
 
-# Excel dosyasının indirileceği URL
 url = "https://www.siparis.haydigiy.com/FaprikaOrderXls/GZPCKE/1/"
 filename = "Satış Raporu.xlsx"
 
-# Dosyanın indirilme tarihini kontrol etmek için fonksiyon
 def is_file_downloaded_today(file_path):
     if os.path.exists(file_path):
-        # Dosyanın son değiştirilme tarihini al
-        file_modification_time = os.path.getmtime(file_path)
-        modification_date = datetime.fromtimestamp(file_modification_time).date()
-        # Bugünün tarihi ile karşılaştır
-        return modification_date == datetime.today().date()
+        file_mod_time = os.path.getmtime(file_path)
+        mod_date = datetime.fromtimestamp(file_mod_time).date()
+        return mod_date == datetime.today().date()
     return False
 
-# Dosya bugün indirilmemişse veya yoksa yeniden indir
 if not is_file_downloaded_today(filename):
-    # Eğer dosya varsa sil
     if os.path.exists(filename):
         os.remove(filename)
-    # Dosyayı indir ve kaydet
-    response = requests.get(url)
-    with open(filename, "wb") as file:
-        file.write(response.content)
+    resp = requests.get(url)
+    with open(filename, "wb") as f:
+        f.write(resp.content)
 
-# Excel dosyasını oku
 df = pd.read_excel(filename)
-
-# Tutulacak sütunlar
 columns_to_keep = ["UrunAdi", "Adet", "ToplamFiyat"]
-
-# Diğer sütunları silmek
 df = df[columns_to_keep]
-
-# Düzenlenmiş dosyayı aynı adla kaydet
 df.to_excel(filename, index=False)
-
-clear_previous_line()
-
-print(Fore.GREEN + "BAŞARILI - Satış Raporu İndirme (9/32)")
 
 #endregion
 
 #region // Adet Sütununu Sayıya Çevirme
 
 def clean_adet(data):
-    # "Adet" sütunundaki tüm verilerin virgül karakterinden sonrasını temizle
     data['Adet'] = data['Adet'].astype(str).apply(lambda x: x.split(',')[0])
 
-if __name__ == "__main__":
-    # Mevcut Excel dosyasını oku
-    file_path = "Satış Raporu.xlsx"
-    combined_data = pd.read_excel(file_path, engine="openpyxl")
-
-    # "Adet" sütunundaki verilerin virgül karakterinden sonrasını temizle
-    clean_adet(combined_data)
-
-    # Güncellenmiş veriyi aynı dosyaya üstüne kaydet
-    combined_data.to_excel(file_path, index=False, engine='openpyxl')
-    
-   
 def convert_adet_to_numeric(data):
-    # "Adet" sütunundaki tüm verileri sayıya dönüştür
-    data['Adet'] = pd.to_numeric(data['Adet'], errors='coerce')  # 'coerce' ile hatalı değerleri NaN olarak işaretle
+    data['Adet'] = pd.to_numeric(data['Adet'], errors='coerce')
 
 if __name__ == "__main__":
-    # Mevcut Excel dosyasını oku
     file_path = "Satış Raporu.xlsx"
     combined_data = pd.read_excel(file_path, engine="openpyxl")
-
-    # "Adet" sütunundaki verileri sayıya dönüştür
-    convert_adet_to_numeric(combined_data)
-
-    # Güncellenmiş veriyi aynı dosyaya üstüne kaydet
+    clean_adet(combined_data)
     combined_data.to_excel(file_path, index=False, engine='openpyxl')
 
-clear_previous_line()
-
-print(Fore.GREEN + "BAŞARILI - Satış Raporu Düzenleme 1 (10/32)")
+    combined_data = pd.read_excel(file_path, engine="openpyxl")
+    convert_adet_to_numeric(combined_data)
+    combined_data.to_excel(file_path, index=False, engine='openpyxl')
 
 #endregion
 
 #region // ToplamFiyat Sütununu Sayıya Çevirme
 
-def clean_adet(data):
-    # "Adet" sütunundaki tüm verilerin virgül karakterinden sonrasını temizle
+def clean_toplamfiyat(data):
     data['ToplamFiyat'] = data['ToplamFiyat'].astype(str).apply(lambda x: x.split(',')[0])
 
-if __name__ == "__main__":
-    # Mevcut Excel dosyasını oku
-    file_path = "Satış Raporu.xlsx"
-    combined_data = pd.read_excel(file_path, engine="openpyxl")
-
-    # "Adet" sütunundaki verilerin virgül karakterinden sonrasını temizle
-    clean_adet(combined_data)
-
-    # Güncellenmiş veriyi aynı dosyaya üstüne kaydet
-    combined_data.to_excel(file_path, index=False, engine='openpyxl')
-    
-   
-def convert_adet_to_numeric(data):
-    # "Adet" sütunundaki tüm verileri sayıya dönüştür
-    data['ToplamFiyat'] = pd.to_numeric(data['ToplamFiyat'], errors='coerce')  # 'coerce' ile hatalı değerleri NaN olarak işaretle
+def convert_toplamfiyat_to_numeric(data):
+    data['ToplamFiyat'] = pd.to_numeric(data['ToplamFiyat'], errors='coerce')
 
 if __name__ == "__main__":
-    # Mevcut Excel dosyasını oku
     file_path = "Satış Raporu.xlsx"
     combined_data = pd.read_excel(file_path, engine="openpyxl")
-
-    # "Adet" sütunundaki verileri sayıya dönüştür
-    convert_adet_to_numeric(combined_data)
-
-    # Güncellenmiş veriyi aynı dosyaya üstüne kaydet
+    clean_toplamfiyat(combined_data)
     combined_data.to_excel(file_path, index=False, engine='openpyxl')
 
-clear_previous_line()
-
-print(Fore.GREEN + "BAŞARILI - Satış Raporu Düzenleme 2 (11/32)")
+    combined_data = pd.read_excel(file_path, engine="openpyxl")
+    convert_toplamfiyat_to_numeric(combined_data)
+    combined_data.to_excel(file_path, index=False, engine='openpyxl')
 
 #endregion
 
 #region // Adet ve ToplamFiyat Sütununa ETOPLA yapma
 
-# Excel dosyasını tekrar okumak
 df = pd.read_excel("Satış Raporu.xlsx")
-
-# UrunAdi sütununa göre gruplandırma ve Adet ile ToplamFiyat sütunlarındaki verileri toplama
 df_grouped = df.groupby('UrunAdi', as_index=False).agg({
     'Adet': 'sum',
     'ToplamFiyat': 'sum'
 })
-
-# Düzenlenmiş dosyayı aynı adla kaydetmek
 df_grouped.to_excel("Satış Raporu.xlsx", index=False)
-
-clear_previous_line()
-
-print(Fore.GREEN + "BAŞARILI - Satış Raporu Düzenleme 3 (12/32)")
 
 #endregion
 
 #region // Ana Listeye Veriyi Çektirme
 
-# Excel dosyalarını oku
 satis_raporu_df = pd.read_excel("Satış Raporu.xlsx")
 one_cikanlar_df = pd.read_excel("sonuc_excel.xlsx")
 
-# Öne Çıkanlar Excel'ine Satış Raporu'ndan Adet ve ToplamFiyat sütunlarını eklemek için merge işlemi yapalım
 merged_df = one_cikanlar_df.merge(
     satis_raporu_df[['UrunAdi', 'Adet']],
     on='UrunAdi',
     how='left'
 )
 
-# Sütun adını değiştir
 merged_df.rename(columns={'Adet': 'Dünün Satış Adedi'}, inplace=True)
-
-# Birleştirilmiş veriyi Öne Çıkanlar Excel dosyasına kaydedelim
 merged_df.to_excel("sonuc_excel.xlsx", index=False)
-
-clear_previous_line()
-
-print(Fore.GREEN + "BAŞARILI - Ana Tabloya Satış Adetlerini Çektime (13/32)")
 
 #endregion
 
 #region // Sütunların Sırasını Değiştirme - Bazı Sütunların Adını Değiştirme
 
-# Excel dosyasını oku
 df_calisma_alani = pd.read_excel("sonuc_excel.xlsx")
 
-# "StokAdedi" sütununun adını değiştirme
+# İsim değişiklikleri
 df_calisma_alani = df_calisma_alani.rename(columns={"StokAdedi": "İnstagram Stok Adedi"})
 df_calisma_alani = df_calisma_alani.rename(columns={"VaryasyonGittiGidiyorKodu": "Net Satış Tarihi ve Adedi"})
+df_calisma_alani = df_calisma_alani.rename(columns={"TrendyolKodu": "Son Transfer Tarihi"})
+df_calisma_alani = df_calisma_alani.rename(columns={"VaryasyonTrendyolKodu": "Son İndirim Tarihi"})
 
-# Sütun sıralamasını ayarlama
-column_order = ["UrunAdi", "İnstagram Stok Adedi", "Stok Adedi Her Şey Dahil", "Stok Adedi Site ve Vega", 
-                "Günlük Ortalama Satış Adedi", "Dünün Satış Adedi", "Ortalama Görüntülenme Adedi", "Görüntülenmenin Satışa Dönüş Oranı", 
-                "Kaç Güne Biter Her Şey Dahil", "Kaç Güne Biter Site ve Vega", "AlisFiyati", "SatisFiyati", 
-                "AramaTerimleri", "Resim", "Kategori", "GMT Stok Adedi", "SİTA Stok Adedi", "Marka", "N11Kodu", "Net Satış Tarihi ve Adedi"]
+# Sütun sırası
+column_order = [
+    "UrunAdi",
+    "İnstagram Stok Adedi",
+    "Stok Adedi Her Şey Dahil",
+    "Stok Adedi Site ve Vega",
+    "Günlük Ortalama Satış Adedi",
+    "Dünün Satış Adedi",
+    "Ortalama Görüntülenme Adedi",
+    "Görüntülenmenin Satışa Dönüş Oranı",
+    "Kaç Güne Biter Her Şey Dahil",
+    "Kaç Güne Biter Site ve Vega",
+    "AlisFiyati",
+    "SatisFiyati",
+    "AramaTerimleri",
+    "Resim",
+    "Kategori",
+    "GMT Stok Adedi",
+    "SİTA Stok Adedi",
+    "Marka",
+    "N11Kodu",
+    "Net Satış Tarihi ve Adedi",
+    "Son Transfer Tarihi",
+    "Son İndirim Tarihi"
+]
 df_calisma_alani = df_calisma_alani[column_order]
 
-clear_previous_line()
+# "Son İndirim Tarihi" ve "Son Transfer Tarihi" kolonlarındaki verilerin boşluktan sonraki kısımlarını silelim
+for col in ["Son İndirim Tarihi", "Son Transfer Tarihi"]:
+    df_calisma_alani[col] = (
+        df_calisma_alani[col]
+        .astype(str)  # metne çevir
+        .apply(lambda x: x.split(' ')[0] if x and x.lower() != 'nan' else '')
+    )
 
-print(Fore.GREEN + "BAŞARILI - Sütunların Sırasını Değiştirme - Bazı Sütunların Adını Değiştirme (14/32)")
+df_calisma_alani.to_excel("sonuc_excel.xlsx", index=False)
 
 #endregion
 
-#region // Yenilenen Değerleri Kaldırma 
+#region // Yenilenen Değerleri Kaldırma
 
-# Tekrarlanan satırları silme
 df_calisma_alani = df_calisma_alani.drop_duplicates(subset=["UrunAdi"])
-
-clear_previous_line()
-
-print(Fore.GREEN + "BAŞARILI - Yenilenen Değerleri Kaldırma (15/32)")
 
 #endregion
 
 #region // Resim Sütunu İçin .jpeg'den Sonrasını Kaldırma ve Devamına .jpeg Ekleme
 
-# "Resim" sütunundaki ".jpeg" ifadesinden sonrasını temizleme ve ".jpeg" ekleme
 df_calisma_alani["Resim"] = df_calisma_alani["Resim"].str.replace(r"\.jpeg.*$", "", regex=True) + ".jpeg"
-
-# Resim bağlantılarını bir listeye kaydet
 links = df_calisma_alani["Resim"].tolist()
 
-# NaN değerlerini 0 ile değiştirme
 df_calisma_alani = df_calisma_alani.fillna(0)
-
-# inf değerlerini 0 ile değiştirme
 df_calisma_alani.replace([float('inf'), float('-inf')], 0, inplace=True)
-
-clear_previous_line()
-
-print(Fore.GREEN + "BAŞARILI - Resim Sütununu Ayarlama ve Köprü Verme (16/32)")
 
 #endregion
 
 #region // AramaTerimleri Sütunundaki Tarihleri Ayıklama
 
-# "AramaTerimleri" sütunundaki tarihleri temizle
 date_pattern = r'(\d{1,2}\.\d{1,2}\.\d{4})'
-df_calisma_alani['AramaTerimleri'] = df_calisma_alani['AramaTerimleri'].apply(lambda x: re.search(date_pattern, str(x)).group(1) if re.search(date_pattern, str(x)) else None)
-
-clear_previous_line()
-
-print(Fore.GREEN + "BAŞARILI - AramaTerimleri Sütunundaki Tarihleri Ayıklama (17/32)")
+df_calisma_alani['AramaTerimleri'] = df_calisma_alani['AramaTerimleri'].apply(
+    lambda x: re.search(date_pattern, str(x)).group(1) if re.search(date_pattern, str(x)) else None
+)
 
 #endregion
 
 #region // Bazı Sütunların Adını Güncelleme
 
-# "AramaTerimleri" sütununun adını "Resim Yüklenme Tarihi" olarak değiştirme
 df_calisma_alani.rename(columns={"AramaTerimleri": "Resim Yüklenme Tarihi"}, inplace=True)
 df_calisma_alani.rename(columns={"AlisFiyati": "Alış Fiyatı"}, inplace=True)
 df_calisma_alani.rename(columns={"SatisFiyati": "Satış Fiyatı"}, inplace=True)
 df_calisma_alani.rename(columns={"UrunAdi": "Ürün Adı"}, inplace=True)
 df_calisma_alani.rename(columns={"N11Kodu": "Mevsim"}, inplace=True)
 
-clear_previous_line()
-
-print(Fore.GREEN + "BAŞARILI - Sütun İsimleri Güncelleme (18/32)")
-
 #endregion
 
-#region // Resim Sütunuyla Alakalı Bir İşlem
+#region // Sütunların Biçim Ayarları ve Diğer Ayarlamalar
 
-# "Resim" sütununu DataFrame'den kaldır
-df_calisma_alani.drop(columns=["Resim"], inplace=True)
-
-clear_previous_line()
-
-print(Fore.GREEN + "BAŞARILI - Resim Sütununu DataFrameden Kaldırma (19/32)")
-
-#endregion
-
-#region // Sütunların Biçim Ayarları ve Bazı Ayarlamalar
-
-# Güncellenmiş DataFrame'i aynı Excel dosyasına yaz
 with pd.ExcelWriter('sonuc_excel.xlsx', engine='xlsxwriter') as writer:
     df_calisma_alani.to_excel(writer, index=False, sheet_name='Sheet1')
-
-    # ExcelWriter objesinden workbook ve worksheet'e eriş
     workbook = writer.book
     worksheet = writer.sheets['Sheet1']
 
-    # İlk sütun (Ürün Adı) için uygun genişlik ayarlama
     max_col_width = max(df_calisma_alani["Ürün Adı"].astype(str).apply(len).max(), len("Ürün Adı")) + 2
     worksheet.set_column(0, 0, max_col_width)
 
-    # Belirli sütunlar için genişliği 10 piksel olarak ayarlama
     narrow_columns = ["Alış Fiyatı", "Satış Fiyatı", "GMT Stok Adedi", "SİTA Stok Adedi"]
     for col_name in narrow_columns:
         col_idx = df_calisma_alani.columns.get_loc(col_name)
         worksheet.set_column(col_idx, col_idx, 10)
 
-    # Diğer tüm sütunların genişliğini 15 piksel olarak ayarla
     for i in range(1, len(df_calisma_alani.columns)):
         if df_calisma_alani.columns[i] not in narrow_columns:
             worksheet.set_column(i, i, 15)
 
-    # Başlık satırının yüksekliğini 50 piksel olarak ayarla
     worksheet.set_row(0, 50)
-
-    # Başlık satırını dondur
     worksheet.freeze_panes(1, 0)
 
-    # Başlık için hücre biçimlendirme ayarlarını yap
     header_format = workbook.add_format({
         'bold': True,
         'bg_color': '#D3D3D3',
@@ -1479,159 +637,131 @@ with pd.ExcelWriter('sonuc_excel.xlsx', engine='xlsxwriter') as writer:
         'text_wrap': True,
         'border': 1
     })
-
-    # Para birimi formatı tanımlama (orta hizalı)
     currency_format = workbook.add_format({'num_format': '#,##0.00₺', 'align': 'center', 'valign': 'vcenter'})
     shaded_currency_format = workbook.add_format({'bg_color': '#D9D9D9', 'num_format': '#,##0.00₺', 'align': 'center', 'valign': 'vcenter'})
-
-    # Var içeren hücreler için özel renklendirme
     var_format = workbook.add_format({'bg_color': '#ffb994'})
 
-    # Başlık hücrelerini yaz ve biçimlendir
     for col_num, value in enumerate(df_calisma_alani.columns.values):
         worksheet.write(0, col_num, value, header_format)
 
-    # Veriler için hücre biçimlendirme ayarlarını yap
     center_format = workbook.add_format({'align': 'center', 'valign': 'vcenter'})
     left_align_format = workbook.add_format({'align': 'left', 'valign': 'vcenter'})
     shaded_format = workbook.add_format({'bg_color': '#D9D9D9', 'align': 'center', 'valign': 'vcenter'})
     shaded_left_align_format = workbook.add_format({'bg_color': '#D9D9D9', 'align': 'left', 'valign': 'vcenter'})
 
     for row_num, row in enumerate(df_calisma_alani.itertuples(), start=1):
-        for col_num, value in enumerate(row[1:]):  # row[0] index olduğu için atlanıyor
+        for col_num, value in enumerate(row[1:]):
             col_name = df_calisma_alani.columns[col_num]
             try:
-                if col_num == 0:  # Ürün Adı sütunu
-                    link = links[row_num - 1]  # Resim sütunundaki bağlantıyı Ürün Adı'ya ekliyoruz
-                    if isinstance(link, str) and link.startswith("http"):  # Link geçerli mi?
+                if col_num == 0:
+                    link = links[row_num - 1] if row_num - 1 < len(links) else ""
+                    if isinstance(link, str) and link.startswith("http"):
                         if row_num % 2 == 1:
                             worksheet.write_url(row_num, col_num, link, string=value, cell_format=shaded_left_align_format)
                         else:
                             worksheet.write_url(row_num, col_num, link, string=value, cell_format=left_align_format)
-                    else:  # Link geçerli değilse düz metin olarak yaz
+                    else:
                         if row_num % 2 == 1:
                             worksheet.write(row_num, col_num, value, shaded_left_align_format)
                         else:
                             worksheet.write(row_num, col_num, value, left_align_format)
+
                 elif col_name in ["Alış Fiyatı", "Satış Fiyatı"]:
-                    # Para birimi formatı uygulama, alternatif satır renklendirme ile ve orta hizalı
                     if row_num % 2 == 1:
                         worksheet.write(row_num, col_num, value, shaded_currency_format)
                     else:
                         worksheet.write(row_num, col_num, value, currency_format)
+
                 elif col_name in ["GMT Stok Adedi", "SİTA Stok Adedi"] and "Var" in str(value):
                     worksheet.write(row_num, col_num, value, var_format)
+
                 else:
                     if row_num % 2 == 1:
                         worksheet.write(row_num, col_num, value, shaded_format)
                     else:
                         worksheet.write(row_num, col_num, value, center_format)
+
             except Exception as e:
-                # Hata durumunda devam et
-                print(f"Hata: Satır {row_num}, Sütun {col_num}, Değer: {value}, Hata Mesajı: {e}")
                 continue
 
-    # Başlıklara filtre ekleme
     worksheet.autofilter(0, 0, 0, len(df_calisma_alani.columns) - 1)
-
-    # Sayfanın yakınlaştırma oranını %90 olarak ayarla
     worksheet.set_zoom(90)
 
-# Dosyanın adını değiştirme
-excel_file_name = "sonuc_excel.xlsx"
-new_excel_file_name = "Nirvana.xlsx"
-os.rename(excel_file_name, new_excel_file_name)
-
-clear_previous_line()
-
-print(Fore.GREEN + "BAŞARILI - Sütunların Biçim Ayarları ve Diğer Ayarlamalar (20/32)")
+os.rename("sonuc_excel.xlsx", "Nirvana.xlsx")
 
 #endregion
 
 #region // Kar Yüzdesi Sütununu Hesaplama
 
-# Excel dosyasını yükle
 dosya_adi = "Nirvana.xlsx"
 workbook = openpyxl.load_workbook(dosya_adi)
-
-# Kopya sayfayı seç
 kopya_sayfa_adi = "Sheet1"
+
 if kopya_sayfa_adi in workbook.sheetnames:
     sheet = workbook[kopya_sayfa_adi]
-
-    # Başlıkları kontrol et ve "Stok Adedi Her Şey Dahil" sütununu bul
+    # Başlık hücrelerini okumak için ilk satırı tarar ve değer->kolon indeksini sözlüğe alır
     basliklar = {cell.value: cell.column for cell in sheet[1] if cell.value}
+
+    # "Net Satış Tarihi ve Adedi" başlığının Excel sütun indeksini bulma
     stok_adedi_kolon = basliklar.get("Net Satış Tarihi ve Adedi")
 
     if stok_adedi_kolon:
-        # Yeni sütun indeksi (kopyalanan sütunun yanına eklenecek)
-        yeni_sutun_index = stok_adedi_kolon + 1
+        # Eskiden +1 idi, artık +3 yaparak 3 sütun sonrasına koyacağız
+        yeni_sutun_index = stok_adedi_kolon + 3
 
-        # "Stok Adedi Her Şey Dahil" sütununu biçimleriyle birlikte kopyala
+        # Eski sütundaki değerleri (ve stilleri) birebir kopyalayarak yeni sütuna aktarıyor
         for row in range(1, sheet.max_row + 1):
             eski_hucre = sheet.cell(row=row, column=stok_adedi_kolon)
             yeni_hucre = sheet.cell(row=row, column=yeni_sutun_index)
-
-            # Veriyi ve biçimlendirmeyi kopyala
             yeni_hucre.value = eski_hucre.value
             if eski_hucre.has_style:
+                from copy import copy
                 yeni_hucre._style = copy(eski_hucre._style)
 
-        # Yeni sütuna başlık ekle
+        # Yeni sütunun ilk hücresine (başlık satırı) isim verelim
         sheet.cell(row=1, column=yeni_sutun_index).value = "Kar Yüzdesi"
 
-        # Gerekli sütunların indekslerini belirle
+        # "Satış Fiyatı" ve "Alış Fiyatı" sütunlarını da sözlükten alalım
         satis_fiyati_kolon = basliklar.get("Satış Fiyatı")
         alis_fiyati_kolon = basliklar.get("Alış Fiyatı")
 
+        # Her satır için kâr yüzdesi formülü uygula
         if satis_fiyati_kolon and alis_fiyati_kolon:
-            # Kar yüzdesi hesaplamasını yap ve yüzde formatını uygula
             for row in range(2, sheet.max_row + 1):
                 satis_fiyati = sheet.cell(row=row, column=satis_fiyati_kolon).value
                 alis_fiyati = sheet.cell(row=row, column=alis_fiyati_kolon).value
-
                 yeni_hucre = sheet.cell(row=row, column=yeni_sutun_index)
 
-                if satis_fiyati and alis_fiyati:  # Boş hücreleri kontrol et
+                if satis_fiyati and alis_fiyati:
                     try:
                         kar_yuzdesi = (satis_fiyati - alis_fiyati) / satis_fiyati
                         yeni_hucre.value = kar_yuzdesi
-                        yeni_hucre.number_format = "0.00%"  # Yüzde formatı
+                        # Excel’de yüzde formatı (ör. %10.00 vb.) görünmesi için
+                        yeni_hucre.number_format = "0.00%"
                     except ZeroDivisionError:
                         yeni_hucre.value = None
 
-# Değişiklikleri kaydet
 workbook.save(dosya_adi)
+gc.collect()
 
-clear_previous_line()
-
-print(Fore.GREEN + "BAŞARILI - Kar Yüzdesi Sütununu Hesaplama (25/32)")
 
 #endregion
 
 #region // Gereksiz Excel Dosyalarını Silme
 
-# Eski dosyaları silme
 dosyalar = ["GMT ve SİTA.xlsx", "Satış Raporu.xlsx"]
-
 for dosya in dosyalar:
     if os.path.exists(dosya):
         os.remove(dosya)
-
-clear_previous_line()
-
-print(Fore.GREEN + "BAŞARILI - Gereksiz Excel Dosyalarını Silme (21/32)")
 
 #endregion
 
 #region // Sütunlara Açıklama Ekleme
 
-# Excel dosyasını yükle
 dosya_yolu = "Nirvana.xlsx"
 workbook = load_workbook(dosya_yolu)
 sheet = workbook.active
 
-# Sütun başlıkları ve açıklama metinleri
 columns_with_comments = {
     "İnstagram Stok Adedi": "Ürünün sitedeki satışa açık stok adedini belirtir",
     "Stok Adedi Her Şey Dahil": "Ürünün Instagram - STAD Depo - Zimmet Depo - GMT - SİTA kısımlarındaki toplam stok adedini belirtir",
@@ -1648,37 +778,29 @@ columns_with_comments = {
     "Kategori": "Ürünün ana kategorisini belirtir",
     "GMT Stok Adedi": "Ürünün GMT üzerinde kalan olarak ne kadar stok adedi olduğunu belirtir",
     "SİTA Stok Adedi": "Ürünün SİTA üzerinde ne kadar stok adedi olduğunu belirtir",
-    "Net Satış Tarihi ve Adedi": "Ürünün tüm renklerinin ve tüm bedenlerinin aktif olduğu son günü belirler ve o gün kaç adet sattığını belirtir"
+    "Net Satış Tarihi ve Adedi": "Ürünün tüm renklerinin ve tüm bedenlerinin aktif olduğu son günü belirler ve o gün kaç adet sattığını belirtir",
+    "Kar Yüzdesi": "Ürünün kar yüzdesini belirtir",
+    "Son Transfer Tarihi": "Ürünün son tranfer edildiği tarihi belirtir",
+    "Son İndirim Tarihi": "Ürünün son indirim yapıldığı tarihi belirtir"
 }
 
-# Başlık hücrelerini bul ve açıklama ekle
-for cell in sheet[1]:  # 1. satırdaki tüm hücreleri kontrol eder
+for cell in sheet[1]:
     if cell.value in columns_with_comments:
-        # Yükseklik ve genişlik %100x%100 olacak şekilde açıklama oluştur
         comment = Comment(columns_with_comments[cell.value], "Açıklama", width=400, height=300)
         cell.comment = comment
 
-# Değişiklikleri kaydet
 workbook.save(dosya_yolu)
-
-# Workbook nesnesini serbest bırak ve önbelleği temizle
 del workbook
 gc.collect()
-
-clear_previous_line()
-
-print(Fore.GREEN + "BAŞARILI - Sütunlara Açıklama Ekleme (22/32)")
 
 #endregion
 
 #region // Sigara Ürünleri Markadan Tespit Etme
 
-# Excel dosyasını yükle
 file_path = "Nirvana.xlsx"
 workbook = openpyxl.load_workbook(file_path)
 sheet = workbook["Sheet1"]
 
-# "Ürün Adı" ve "Marka" sütunlarının indekslerini bul
 urun_adi_column = None
 marka_column = None
 
@@ -1688,79 +810,58 @@ for col_index, column in enumerate(sheet[1], start=1):
     elif column.value == "Marka":
         marka_column = col_index
 
-# Hata kontrolü: Eğer "Ürün Adı" veya "Marka" sütunu bulunamazsa
 if urun_adi_column is None or marka_column is None:
     raise ValueError("'Ürün Adı' veya 'Marka' sütunu bulunamadı.")
 
-# Verileri kontrol edip hücre rengini değiştirme
-for row in sheet.iter_rows(min_row=2):  # Başlık satırını atla
+for row in sheet.iter_rows(min_row=2):
     urun_adi_cell = row[urun_adi_column - 1]
     marka_cell = row[marka_column - 1]
 
     if marka_cell.value and isinstance(marka_cell.value, str) and "Sigara Ürün" in marka_cell.value:
-        urun_adi_cell.fill = PatternFill(start_color="ADD8E6", end_color="ADD8E6", fill_type="solid")  # Açık mavi renk
+        urun_adi_cell.fill = PatternFill(start_color="ADD8E6", end_color="ADD8E6", fill_type="solid")
 
-# "Marka" sütununu sil
 sheet.delete_cols(marka_column)
-
-# Değişiklikleri kaydet
 workbook.save(file_path)
 
-clear_previous_line()
-
-print(Fore.GREEN + "BAŞARILI - Sigara Ürünleri Markadan Tespit Etme (23/32)")
-
 #endregion
+
 
 
 
 
 #region // Kopya Sayfa Oluşturma
 
-# Nirvana.xlsx dosyasını yükle
 dosya_adi = "Nirvana.xlsx"
 workbook = openpyxl.load_workbook(dosya_adi)
 
-# Sheet1 sayfasını kopyala
 if "Sheet1" in workbook.sheetnames:
     sheet1 = workbook["Sheet1"]
     sheet_copy = workbook.copy_worksheet(sheet1)
-    sheet_copy.title = "Sheet1_Copy"  # Yeni sayfa adı
+    sheet_copy.title = "Sheet1_Copy"
 
-# Dosyayı kaydet
 workbook.save(dosya_adi)
-
-clear_previous_line()
-
-print(Fore.GREEN + "BAŞARILI - Kopya Sayfa Oluşturma (24/32)")
 
 #endregion
 
 #region // Liste Fiyatını Hesaplama
 
-# Excel dosyasını yükle
 dosya_adi = "Nirvana.xlsx"
 sheet_adi = "Sheet1_Copy"
 workbook = openpyxl.load_workbook(dosya_adi)
 if sheet_adi in workbook.sheetnames:
     sheet = workbook[sheet_adi]
-
-    # Başlıkları ve kolon indekslerini belirle
     basliklar = {cell.value: cell.column for cell in sheet[1] if cell.value}
     alis_fiyati_kolon = basliklar.get("Alış Fiyatı")
     kategori_kolon = basliklar.get("Kategori")
     yeni_kolon_index = sheet.max_column + 1
 
-    # Yeni sütuna başlık ekle
     sheet.cell(row=1, column=yeni_kolon_index).value = "ListeFiyati2"
 
-    # Liste fiyatını hesaplayarak yeni sütuna ekle
     for row in range(2, sheet.max_row + 1):
         alis_fiyati = sheet.cell(row=row, column=alis_fiyati_kolon).value
         kategori = sheet.cell(row=row, column=kategori_kolon).value
 
         if alis_fiyati is not None:
-            # Liste fiyatını hesaplama
             if 0 <= alis_fiyati <= 24.99:
                 result = alis_fiyati + 10
             elif 25 <= alis_fiyati <= 39.99:
@@ -1774,34 +875,25 @@ if sheet_adi in workbook.sheetnames:
             else:
                 result = alis_fiyati
 
-            # KDV hesaplama
-            if isinstance(kategori, str) and any(category in kategori for category in ["Parfüm", "Gözlük", "Saat", "Kolye", "Küpe", "Bileklik", "Bilezik"]):
+            if isinstance(kategori, str) and any(cat in kategori for cat in ["Parfüm", "Gözlük", "Saat", "Kolye", "Küpe", "Bileklik", "Bilezik"]):
                 result *= 1.20
             else:
                 result *= 1.10
 
-            # Sonuç ekle
             sheet.cell(row=row, column=yeni_kolon_index).value = result
 
-# Değişiklikleri kaydet
 workbook.save(dosya_adi)
-
-clear_previous_line()
-
-print(Fore.GREEN + "BAŞARILI - Liste Fiyatı Hesaplama (26/32)")
 
 #endregion
 
 #region // Satış Fiyatı Liste Fiyatının Altındaysa Alış Fiyatını Kırmızı Yapma
 
-# Excel dosyasını yükle
 dosya_adi = "Nirvana.xlsx"
 sheet_adi = "Sheet1_Copy"
 workbook = openpyxl.load_workbook(dosya_adi)
 if sheet_adi in workbook.sheetnames:
     sheet = workbook[sheet_adi]
 
-    # Başlıkları ve kolon indekslerini belirle
     basliklar = {cell.value: cell.column for cell in sheet[1] if cell.value}
     liste_fiyati2_kolon = basliklar.get("ListeFiyati2")
     satis_fiyati_kolon = basliklar.get("Satış Fiyatı")
@@ -1814,63 +906,42 @@ if sheet_adi in workbook.sheetnames:
             alis_fiyati_hucre = sheet.cell(row=row, column=alis_fiyati_kolon)
 
             if liste_fiyati2 is not None and satis_fiyati is not None:
-                fark = liste_fiyati2 - satis_fiyati  # ListeFiyati2 - Satış Fiyatı farkı
-
-                # Fark 7'den büyükse yazı rengini kırmızı yap
+                fark = liste_fiyati2 - satis_fiyati
                 if fark > 7:
-                    alis_fiyati_hucre.font = Font(color="FF0000")  # Kırmızı renk
-                else:
-                    # Eğer renk değiştirilmemesi gerekiyorsa hiçbir işlem yapılmaz
-                    pass
+                    alis_fiyati_hucre.font = Font(color="FF0000")
 
-# Değişiklikleri kaydet
 workbook.save(dosya_adi)
-
-clear_previous_line()
-
-print(Fore.GREEN + "BAŞARILI - Satış Fiyatı Liste Fiyatının Altındaysa Alış Fiyatını Kırmızı Yapma (27/32)")
 
 #endregion
 
 #region // ListeFiyati2 Sütununu Silme
 
-# Excel dosyasını yükle
 dosya_adi = "Nirvana.xlsx"
 sheet_adi = "Sheet1_Copy"
 workbook = openpyxl.load_workbook(dosya_adi)
 
-# Kopya sayfayı seç
 if sheet_adi in workbook.sheetnames:
     sheet = workbook[sheet_adi]
 
-    # "ListeFiyati2" sütununu bul ve sil
-    basliklar = {cell.value: cell.column for cell in sheet[1] if cell.value}
+    basliklar = {cell.value: cell.column for cell in sheet[1] if cell.value is not None}
     liste_fiyati2_kolon = basliklar.get("ListeFiyati2")
 
     if liste_fiyati2_kolon:
         sheet.delete_cols(liste_fiyati2_kolon)
 
-# Değişiklikleri kaydet
 workbook.save(dosya_adi)
-
-clear_previous_line()
-
-print(Fore.GREEN + "BAŞARILI - ListeFiyati2 Sütununu Silme (28/32)")
 
 #endregion
 
 #region // Belirli Sütunları Silme
 
-# Nirvana.xlsx dosyasını yükle
 dosya_adi = "Nirvana.xlsx"
 workbook = openpyxl.load_workbook(dosya_adi)
-
-# Kopya sayfayı seç
 kopya_sayfa_adi = "Sheet1_Copy"
+
 if kopya_sayfa_adi in workbook.sheetnames:
     sheet = workbook[kopya_sayfa_adi]
 
-    # Silinecek sütunların adları
     silinecek_sutunlar = [
         "Stok Adedi Site ve Vega",
         "Ortalama Görüntülenme Adedi",
@@ -1878,113 +949,593 @@ if kopya_sayfa_adi in workbook.sheetnames:
         "Satış Fiyatı"
     ]
 
-    # Başlıkları oku ve sütunları belirle
     basliklar = {cell.value: cell.column for cell in sheet[1] if cell.value is not None}
 
-    # Sütunları tersten sil (indeks kaymasını önlemek için)
     for sutun_adi in reversed(silinecek_sutunlar):
         if sutun_adi in basliklar:
             sheet.delete_cols(basliklar[sutun_adi])
 
-# Değişiklikleri kaydet
 workbook.save(dosya_adi)
-
-clear_previous_line()
-
-print(Fore.GREEN + "BAŞARILI - Belirli Sütunları Silme (29/32)")
 
 #endregion
 
 #region // Sütunları Gizleme
 
-# Nirvana.xlsx dosyasını tekrar yükle
 workbook = openpyxl.load_workbook(dosya_adi)
-
-# Kopya sayfayı seç
 if kopya_sayfa_adi in workbook.sheetnames:
     sheet = workbook[kopya_sayfa_adi]
 
-    # Gizlenecek sütunların adları
     gizlenecek_sutunlar = [
         "Resim Yüklenme Tarihi",
         "Kategori",
         "GMT Stok Adedi",
-        "SİTA Stok Adedi"
+        "SİTA Stok Adedi",
+        "Son Transfer Tarihi",
+        "Son İndirim Tarihi"
     ]
 
-    # Başlıkları oku ve sütunları belirle
     basliklar = {cell.value: cell.column for cell in sheet[1] if cell.value is not None}
 
-    # Gizlenecek sütunları gizle
     for sutun_adi in gizlenecek_sutunlar:
         if sutun_adi in basliklar:
-            sheet.column_dimensions[openpyxl.utils.get_column_letter(basliklar[sutun_adi])].hidden = True
+            sheet.column_dimensions[get_column_letter(basliklar[sutun_adi])].hidden = True
 
-# Değişiklikleri kaydet
 workbook.save(dosya_adi)
-
-clear_previous_line()
-
-print(Fore.GREEN + "BAŞARILI - Sütunları Gizleme (30/32)")
 
 #endregion
 
 #region // Kar Yüzdesi Sütununu Görünür Yapma
 
-# Nirvana.xlsx dosyasını yükle
-dosya_adi = "Nirvana.xlsx"
 workbook = openpyxl.load_workbook(dosya_adi)
-
-# Kopya sayfayı seç
-kopya_sayfa_adi = "Sheet1_Copy"
 if kopya_sayfa_adi in workbook.sheetnames:
     sheet = workbook[kopya_sayfa_adi]
-
-    # Başlıkları kontrol et ve "Kar Yüzdesi" sütununu bul
     basliklar = {cell.value: cell.column for cell in sheet[1] if cell.value is not None}
     if "Kar Yüzdesi" in basliklar:
         kar_yuzdesi_kolon = basliklar["Kar Yüzdesi"]
+        sheet.column_dimensions[get_column_letter(kar_yuzdesi_kolon)].hidden = False
 
-        # Sütunu görünür yap
-        sheet.column_dimensions[openpyxl.utils.get_column_letter(kar_yuzdesi_kolon)].hidden = False
-
-# Değişiklikleri kaydet
 workbook.save(dosya_adi)
-
-clear_previous_line()
-
-print(Fore.GREEN + "BAŞARILI - Kar Yüzdesi Sütununu Görünür Yapma (31/32)")
 
 #endregion
 
 #region // Sütunlara Filtreleme Özelliği Ekleme
 
-# Nirvana.xlsx dosyasını yükle
-dosya_adi = "Nirvana.xlsx"
-sheet_adi = "Sheet1_Copy"
 workbook = openpyxl.load_workbook(dosya_adi)
-
-# Belirtilen sayfayı seç
-if sheet_adi in workbook.sheetnames:
-    sheet = workbook[sheet_adi]
-
-    # Sütun filtreleme özelliği ekleme
+if kopya_sayfa_adi in workbook.sheetnames:
+    sheet = workbook[kopya_sayfa_adi]
     max_row = sheet.max_row
     max_col = sheet.max_column
     filter_ref = f"A1:{openpyxl.utils.get_column_letter(max_col)}{max_row}"
-
-    # AutoFilter özelliğini ekle
     sheet.auto_filter.ref = filter_ref
 
-# Değişiklikleri kaydet
 workbook.save(dosya_adi)
-
-clear_previous_line()
-
-print(Fore.GREEN + "BAŞARILI - Sütunlara Filtreleme Özelliği Ekleme (32/32)")
 
 #endregion
 
 
 
 
+
+#region // Kopya Sayfa Oluşturma
+
+dosya_adi = "Nirvana.xlsx"
+workbook = openpyxl.load_workbook(dosya_adi)
+
+if "Sheet1" in workbook.sheetnames:
+    sheet1 = workbook["Sheet1"]
+    sheet_copy = workbook.copy_worksheet(sheet1)
+    sheet_copy.title = "Sheet2_Copy"
+
+workbook.save(dosya_adi)
+
+#endregion
+
+#region // Stoğu Olmayanları Silme
+
+import openpyxl
+
+# 1) Nirvana.xlsx dosyasını yükle
+dosya_adi = "Nirvana.xlsx"
+workbook = openpyxl.load_workbook(dosya_adi)
+
+# 2) "Sheet2_Copy" sayfasını seç
+sheet = workbook["Sheet2_Copy"]
+
+# 3) Ürün Adı, İnstagram Stok Adedi ve Resim kolonlarının hangi sütunlarda olduğunu bulalım
+product_name_col = None
+instagram_stock_col = None
+resim_col = None
+
+for col in range(1, sheet.max_column + 1):
+    header_value = sheet.cell(row=1, column=col).value
+    if header_value == "Ürün Adı":
+        product_name_col = col
+    elif header_value == "İnstagram Stok Adedi":
+        instagram_stock_col = col
+    elif header_value == "Resim":
+        resim_col = col
+
+# Gerekli kolonları bulamazsak hata verelim
+if product_name_col is None:
+    raise ValueError('"Ürün Adı" başlığını bulamadım. Lütfen başlığı kontrol edin.')
+if instagram_stock_col is None:
+    raise ValueError('"İnstagram Stok Adedi" başlığını bulamadım. Lütfen başlığı kontrol edin.')
+if resim_col is None:
+    raise ValueError('"Resim" başlığını bulamadım. Lütfen başlığı kontrol edin.')
+
+# 4) Satırları sondan başlayarak silme işlemini yapalım
+#    - İnstagram Stok Adedi <= 0 olanlar
+#    - Resim == 0 olanlar
+for row in range(sheet.max_row, 1, -1):
+    stock_cell = sheet.cell(row=row, column=instagram_stock_col)
+    stock_value = stock_cell.value
+    
+    resim_cell = sheet.cell(row=row, column=resim_col)
+    resim_value = resim_cell.value
+    
+    # Eğer stok <= 0 veya resim hücresi 0 ise satırı sil
+    if (stock_value is not None and stock_value <= 0) or (resim_value == 0):
+        sheet.delete_rows(row, 1)
+
+# 5) Kalan satırlarda "Ürün Adı" kolonundaki hyperlink'i kaldırıp,
+#    "Resim" kolonundaki değeri yeni hyperlink olarak ekleyelim
+#    Ancak Ürün Adı hücresinin stilini değiştirmeyelim.
+for row in range(2, sheet.max_row + 1):  # 1. satır başlık, 2'den itibaren veri var
+    product_name_cell = sheet.cell(row=row, column=product_name_col)
+    resim_cell = sheet.cell(row=row, column=resim_col)
+    
+    # Mevcut bağlantıyı kaldır (stili bozmadan)
+    product_name_cell.hyperlink = None
+    
+    # Yeni bağlantı ekle (eğer "Resim" kolonunda değer varsa)
+    if resim_cell.value:
+        product_name_cell.hyperlink = resim_cell.value
+        # NOT: Burada product_name_cell.style = "Hyperlink" kullanmıyoruz ki mevcut stil değişmesin
+
+# 6) Son olarak "Resim" kolonunu sil
+sheet.delete_cols(resim_col, 1)
+
+# 7) Değişiklikleri kaydet
+workbook.save("Nirvana.xlsx")
+
+
+
+#endregion
+
+#region // Liste Fiyatını Hesaplama
+
+dosya_adi = "Nirvana.xlsx"
+sheet_adi = "Sheet2_Copy"
+
+workbook = openpyxl.load_workbook(dosya_adi)
+if sheet_adi in workbook.sheetnames:
+    sheet = workbook[sheet_adi]
+    basliklar = {cell.value: cell.column for cell in sheet[1] if cell.value}
+
+    # "Kar Yüzdesi", "Alış Fiyatı" ve "Kategori" sütunlarının kolon indekslerini alıyoruz
+    kar_yuzdesi_kolon = basliklar.get("Kar Yüzdesi")
+    alis_fiyati_kolon = basliklar.get("Alış Fiyatı")
+    kategori_kolon = basliklar.get("Kategori")
+
+    if kar_yuzdesi_kolon and alis_fiyati_kolon and kategori_kolon:
+        # Yeni sütunu, "Kar Yüzdesi" sütununun hemen sağ tarafına ekleyeceğiz
+        yeni_kolon_index = kar_yuzdesi_kolon + 1
+
+        # 1) Kar Yüzdesi sütunundaki hücreleri biçimleriyle birlikte yeni sütuna kopyalayın
+        for row in range(1, sheet.max_row + 1):
+            eski_hucre = sheet.cell(row=row, column=kar_yuzdesi_kolon)
+            yeni_hucre = sheet.cell(row=row, column=yeni_kolon_index)
+
+            # Değer ve stil kopyası
+            yeni_hucre.value = eski_hucre.value
+            if eski_hucre.has_style:
+                yeni_hucre._style = copy(eski_hucre._style)
+
+        # 2) Yeni sütunun başlığını "Liste Fiyatı" olarak değiştirelim
+        sheet.cell(row=1, column=yeni_kolon_index).value = "Liste Fiyatı"
+
+        # 3) Her satır için alış fiyatına göre "Liste Fiyatı" değeri hesapla ve biçimlendir
+        for row in range(2, sheet.max_row + 1):
+            alis_fiyati = sheet.cell(row=row, column=alis_fiyati_kolon).value
+            kategori = sheet.cell(row=row, column=kategori_kolon).value
+            yeni_hucre = sheet.cell(row=row, column=yeni_kolon_index)
+
+            if alis_fiyati is not None:
+                # Alış fiyatına göre temel tutar
+                if 0 <= alis_fiyati <= 24.99:
+                    result = alis_fiyati + 10
+                elif 25 <= alis_fiyati <= 39.99:
+                    result = alis_fiyati + 13
+                elif 40 <= alis_fiyati <= 59.99:
+                    result = alis_fiyati + 17
+                elif 60 <= alis_fiyati <= 200.99:
+                    result = alis_fiyati * 1.30
+                elif alis_fiyati >= 201:
+                    result = alis_fiyati * 1.25
+                else:
+                    result = alis_fiyati
+
+                # Kategori takı/parfüm/aksesuar vs. ise ek çarpan
+                if (
+                    isinstance(kategori, str) and 
+                    any(cat in kategori for cat in ["Parfüm", "Gözlük", "Saat", "Kolye", "Küpe", "Bileklik", "Bilezik"])
+                ):
+                    result *= 1.20
+                else:
+                    result *= 1.10
+
+                # Son olarak tam sayıya yuvarlayıp 0.99 ekliyoruz
+                result = int(round(result)) + 0.99
+
+                # Yeni sütuna yazıp para formatı (₺) ekleyelim
+                yeni_hucre.value = result
+                yeni_hucre.number_format = '#,##0.00₺'
+
+workbook.save(dosya_adi)
+
+#endregion
+
+#region // Satış Fiyatı Liste Fiyatının Altındaysa Alış Fiyatını Kırmızı Yapma
+
+dosya_adi = "Nirvana.xlsx"
+sheet_adi = "Sheet2_Copy"
+workbook = openpyxl.load_workbook(dosya_adi)
+if sheet_adi in workbook.sheetnames:
+    sheet = workbook[sheet_adi]
+
+    basliklar = {cell.value: cell.column for cell in sheet[1] if cell.value}
+    liste_fiyati2_kolon = basliklar.get("Liste Fiyatı")
+    satis_fiyati_kolon = basliklar.get("Satış Fiyatı")
+    alis_fiyati_kolon = basliklar.get("Alış Fiyatı")
+
+    if liste_fiyati2_kolon and satis_fiyati_kolon and alis_fiyati_kolon:
+        for row in range(2, sheet.max_row + 1):
+            liste_fiyati2 = sheet.cell(row=row, column=liste_fiyati2_kolon).value
+            satis_fiyati = sheet.cell(row=row, column=satis_fiyati_kolon).value
+            alis_fiyati_hucre = sheet.cell(row=row, column=alis_fiyati_kolon)
+
+            if liste_fiyati2 is not None and satis_fiyati is not None:
+                fark = liste_fiyati2 - satis_fiyati
+                if fark > 7:
+                    alis_fiyati_hucre.font = Font(color="FF0000")
+
+workbook.save(dosya_adi)
+
+#endregion
+
+#region // Belirli Sütunları Silme
+
+dosya_adi = "Nirvana.xlsx"
+workbook = openpyxl.load_workbook(dosya_adi)
+kopya_sayfa_adi = "Sheet2_Copy"
+
+if kopya_sayfa_adi in workbook.sheetnames:
+    sheet = workbook[kopya_sayfa_adi]
+
+    silinecek_sutunlar = [
+        "Stok Adedi Site ve Vega",
+        "Kaç Güne Biter Site ve Vega"
+
+    ]
+
+    basliklar = {cell.value: cell.column for cell in sheet[1] if cell.value is not None}
+
+    for sutun_adi in reversed(silinecek_sutunlar):
+        if sutun_adi in basliklar:
+            sheet.delete_cols(basliklar[sutun_adi])
+
+workbook.save(dosya_adi)
+
+#endregion
+
+#region // Sütunları Gizleme
+
+workbook = openpyxl.load_workbook(dosya_adi)
+if kopya_sayfa_adi in workbook.sheetnames:
+    sheet = workbook[kopya_sayfa_adi]
+
+    gizlenecek_sutunlar = [
+        "GMT Stok Adedi",
+        "SİTA Stok Adedi"
+    ]
+
+    basliklar = {cell.value: cell.column for cell in sheet[1] if cell.value is not None}
+
+    for sutun_adi in gizlenecek_sutunlar:
+        if sutun_adi in basliklar:
+            sheet.column_dimensions[get_column_letter(basliklar[sutun_adi])].hidden = True
+
+workbook.save(dosya_adi)
+
+#endregion
+
+#region // Kar Yüzdesi Sütununu Görünür Yapma
+
+dosya_adi = "Nirvana.xlsx"
+kopya_sayfa_adi = "Sheet2_Copy"
+
+workbook = openpyxl.load_workbook(dosya_adi)
+if kopya_sayfa_adi in workbook.sheetnames:
+    sheet = workbook[kopya_sayfa_adi]
+    
+    # Başlık satırını tarayarak başlık -> kolon index ilişkisini (basliklar) bulalım
+    basliklar = {cell.value: cell.column for cell in sheet[1] if cell.value is not None}
+    
+    # "Kar Yüzdesi" kolonunu görünür (hidden = False) yap
+    if "Kar Yüzdesi" in basliklar:
+        kar_yuzdesi_kolon = basliklar["Kar Yüzdesi"]
+        sheet.column_dimensions[get_column_letter(kar_yuzdesi_kolon)].hidden = False
+    
+    # "Mevsim" kolonunu görünür (hidden = False) yap
+    if "Mevsim" in basliklar:
+        mevsim_kolon = basliklar["Mevsim"]
+        sheet.column_dimensions[get_column_letter(mevsim_kolon)].hidden = False
+
+workbook.save(dosya_adi)
+
+#endregion
+
+#region // Sütunlara Filtreleme Özelliği Ekleme
+
+workbook = openpyxl.load_workbook(dosya_adi)
+if kopya_sayfa_adi in workbook.sheetnames:
+    sheet = workbook[kopya_sayfa_adi]
+    max_row = sheet.max_row
+    max_col = sheet.max_column
+    filter_ref = f"A1:{openpyxl.utils.get_column_letter(max_col)}{max_row}"
+    sheet.auto_filter.ref = filter_ref
+
+workbook.save(dosya_adi)
+
+#endregion
+
+
+
+
+
+
+#region // Geriye Kalan Düzenlemeler
+
+
+dosya_adi = "Nirvana.xlsx"
+
+###############################################################################
+# 1) Excel'i yükleme
+###############################################################################
+workbook = openpyxl.load_workbook(dosya_adi)
+
+###############################################################################
+# Yardımcı fonksiyonlar
+###############################################################################
+def find_column_index(sheet, column_name):
+    """
+    Belirtilen sheet'teki 1. satır (başlıklar) içerisinde column_name'e eşit olan
+    kolonun indeksini döndürür. Bulamazsa None döndürür.
+    """
+    for col in range(1, sheet.max_column + 1):
+        value = sheet.cell(row=1, column=col).value
+        if value == column_name:
+            return col
+    return None
+
+def freeze_top_row(sheet):
+    """
+    Verilen sheet'te üst satırı dondurur (scroll edince başlık satırı sabit kalır).
+    """
+    sheet.freeze_panes = "A2"
+
+###############################################################################
+# 1) (Ortak) - "Resim" = 0 => "Resim Yüklenme Tarihi" = "Resimsiz Ürün"
+#             Boş kalan "Resim Yüklenme Tarihi" => "Tarih Yok"
+###############################################################################
+def fill_resim_and_tarih(sheet):
+    """
+    - "Resim" kolonunda değer 0 ise "Resim Yüklenme Tarihi" hücresine "Resimsiz Ürün" yaz.
+    - "Resim Yüklenme Tarihi" boş (None veya "") ise "Tarih Yok" yaz.
+    """
+    resim_col = find_column_index(sheet, "Resim")
+    resim_tarih_col = find_column_index(sheet, "Resim Yüklenme Tarihi")
+    if not resim_col or not resim_tarih_col:
+        return  # İlgili kolonlar yoksa işlem yapmayalım
+
+    # "Resim" = 0 => "Resim Yüklenme Tarihi" = "Resimsiz Ürün"
+    for row in range(2, sheet.max_row + 1):
+        resim_value = sheet.cell(row=row, column=resim_col).value
+        if resim_value == 0:
+            sheet.cell(row=row, column=resim_tarih_col).value = "Resimsiz Ürün"
+
+    # "Resim Yüklenme Tarihi" boş ise => "Tarih Yok"
+    for row in range(2, sheet.max_row + 1):
+        tarih_value = sheet.cell(row=row, column=resim_tarih_col).value
+        if tarih_value is None or tarih_value == "":
+            sheet.cell(row=row, column=resim_tarih_col).value = "Tarih Yok"
+
+###############################################################################
+# 2) (Sadece Sheet1) - "Resim" kolonunu "Stoksuz Üründe Hareket Var mı?" olarak
+#     yeniden adlandır ve aşağıdaki koşullarla doldur:
+#       - eğer "İnstagram Stok Adedi" <= 0 ve (Günlük Ortalama Satış Adedi > 0 veya 
+#         Dünün Satış Adedi > 0) => "Evet"
+#       - eğer "İnstagram Stok Adedi" <= 0 ve (her ikisi de 0 veya None) => "Hayır"
+#       - eğer "İnstagram Stok Adedi" > 0 => "Stok Var"
+###############################################################################
+def update_resim_column_sheet1(sheet):
+    old_header_col = find_column_index(sheet, "Resim")
+    insta_stok_col = find_column_index(sheet, "İnstagram Stok Adedi")
+    gunluk_ort_satis_col = find_column_index(sheet, "Günlük Ortalama Satış Adedi")
+    dunun_satis_col = find_column_index(sheet, "Dünün Satış Adedi")
+
+    if not old_header_col:
+        return  # "Resim" kolonunu bulamadıysak işleme devam etmiyoruz
+    
+    # Kolon başlığını değiştir
+    sheet.cell(row=1, column=old_header_col).value = "Stoksuz Üründe Hareket Var mı?"
+
+    # Hücreleri doldur
+    for row in range(2, sheet.max_row + 1):
+        stok_val = sheet.cell(row=row, column=insta_stok_col).value if insta_stok_col else None
+        gunluk_ort_val = sheet.cell(row=row, column=gunluk_ort_satis_col).value if gunluk_ort_satis_col else None
+        dunun_val = sheet.cell(row=row, column=dunun_satis_col).value if dunun_satis_col else None
+
+        # Boş (None) değerleri 0 gibi ele alalım
+        stok_val = stok_val if stok_val is not None else 0
+        gunluk_ort_val = gunluk_ort_val if gunluk_ort_val is not None else 0
+        dunun_val = dunun_val if dunun_val is not None else 0
+
+        if stok_val > 0:
+            sonuc = "Stok Var"
+        else:
+            # stok <= 0
+            if (gunluk_ort_val > 0) or (dunun_val > 0):
+                sonuc = "Evet"
+            else:
+                sonuc = "Hayır"
+
+        sheet.cell(row=row, column=old_header_col).value = sonuc
+
+###############################################################################
+# 3) (Sadece Sheet1_Copy) - "Resim" kolonunu "Resimsiz Üründe Hareket Var mı?"
+#     olarak yeniden adlandırıp aynı stok ve satış kontrol mantığıyla doldur
+###############################################################################
+def update_resim_column_sheet1_copy(sheet):
+    old_header_col = find_column_index(sheet, "Resim")
+    insta_stok_col = find_column_index(sheet, "İnstagram Stok Adedi")
+    gunluk_ort_satis_col = find_column_index(sheet, "Günlük Ortalama Satış Adedi")
+    dunun_satis_col = find_column_index(sheet, "Dünün Satış Adedi")
+
+    if not old_header_col:
+        return  # "Resim" kolonunu bulamadıysak işleme devam etmiyoruz
+    
+    # Kolon başlığını değiştir
+    sheet.cell(row=1, column=old_header_col).value = "Stoksuz Üründe Hareket Var mı?"
+
+    # Hücreleri doldur
+    for row in range(2, sheet.max_row + 1):
+        stok_val = sheet.cell(row=row, column=insta_stok_col).value if insta_stok_col else None
+        gunluk_ort_val = sheet.cell(row=row, column=gunluk_ort_satis_col).value if gunluk_ort_satis_col else None
+        dunun_val = sheet.cell(row=row, column=dunun_satis_col).value if dunun_satis_col else None
+
+        # Boş (None) değerleri 0 gibi ele alalım
+        stok_val = stok_val if stok_val is not None else 0
+        gunluk_ort_val = gunluk_ort_val if gunluk_ort_val is not None else 0
+        dunun_val = dunun_val if dunun_val is not None else 0
+
+        if stok_val > 0:
+            sonuc = "Stok Var"
+        else:
+            # stok <= 0
+            if (gunluk_ort_val > 0) or (dunun_val > 0):
+                sonuc = "Evet"
+            else:
+                sonuc = "Hayır"
+
+        sheet.cell(row=row, column=old_header_col).value = sonuc
+
+###############################################################################
+# 4) (Sheet1 & Sheet1_Copy) - "Kaç Güne Biter Her Şey Dahil" kolonunda,
+#    "Stok Adedi Her Şey Dahil" <= 0 => "Stok Yok"
+###############################################################################
+def fill_stok_yok_her_sey_dahil(sheet):
+    kac_gune_biter_col = find_column_index(sheet, "Kaç Güne Biter Her Şey Dahil")
+    stok_hersey_col = find_column_index(sheet, "Stok Adedi Her Şey Dahil")
+    if not (kac_gune_biter_col and stok_hersey_col):
+        return
+
+    for row in range(2, sheet.max_row + 1):
+        stok_val = sheet.cell(row=row, column=stok_hersey_col).value
+        if stok_val is not None and stok_val <= 0:
+            sheet.cell(row=row, column=kac_gune_biter_col).value = "Stok Yok"
+
+###############################################################################
+# 5) (Sadece Sheet1) - "Kaç Güne Biter Site ve Vega" kolonunda,
+#    "Stok Adedi Site ve Vega" <= 0 => "Stok Yok"
+###############################################################################
+def fill_stok_yok_site_vega(sheet):
+    kac_gune_site_vega_col = find_column_index(sheet, "Kaç Güne Biter Site ve Vega")
+    stok_site_vega_col = find_column_index(sheet, "Stok Adedi Site ve Vega")
+    if not (kac_gune_site_vega_col and stok_site_vega_col):
+        return
+
+    for row in range(2, sheet.max_row + 1):
+        stok_val = sheet.cell(row=row, column=stok_site_vega_col).value
+        if stok_val is not None and stok_val <= 0:
+            sheet.cell(row=row, column=kac_gune_site_vega_col).value = "Stok Yok"
+
+###############################################################################
+# 6) (Sheet1 & Sheet1_Copy) - "Kategori" kolonunda veri 0 ise => "Kategori Yok"
+###############################################################################
+def fill_kategori_yok(sheet):
+    kategori_col = find_column_index(sheet, "Kategori")
+    if not kategori_col:
+        return
+
+    for row in range(2, sheet.max_row + 1):
+        val = sheet.cell(row=row, column=kategori_col).value
+        if val == 0:
+            sheet.cell(row=row, column=kategori_col).value = "Kategori Yok"
+
+###############################################################################
+# 7) (Sheet1_Copy & Sheet2_Copy) - İlk satırı dondur (freeze panes)
+###############################################################################
+
+###############################################################################
+# Uygulamaya geçiş
+###############################################################################
+
+# A) Sheet1 - 1. maddedeki "Resim" ve "Resim Yüklenme Tarihi" doldurma:
+if "Sheet1" in workbook.sheetnames:
+    fill_resim_and_tarih(workbook["Sheet1"])         # (Madde 1)
+    update_resim_column_sheet1(workbook["Sheet1"])   # (Madde 2)
+    fill_stok_yok_her_sey_dahil(workbook["Sheet1"])  # (Madde 4)
+    fill_stok_yok_site_vega(workbook["Sheet1"])      # (Madde 5)
+    fill_kategori_yok(workbook["Sheet1"])            # (Madde 6)
+
+# B) Sheet1_Copy
+if "Sheet1_Copy" in workbook.sheetnames:
+    fill_resim_and_tarih(workbook["Sheet1_Copy"])    # (Madde 1 tekrarı)
+    update_resim_column_sheet1_copy(workbook["Sheet1_Copy"])  # (Madde 3)
+    fill_stok_yok_her_sey_dahil(workbook["Sheet1_Copy"])       # (Madde 4)
+    fill_kategori_yok(workbook["Sheet1_Copy"])                 # (Madde 6)
+    freeze_top_row(workbook["Sheet1_Copy"])                    # (Madde 7 - freeze)
+
+# C) Sheet2_Copy - sadece 7. madde gereği freeze topl row
+if "Sheet2_Copy" in workbook.sheetnames:
+    freeze_top_row(workbook["Sheet2_Copy"])
+
+# D) Son olarak kaydet
+workbook.save(dosya_adi)
+
+
+#endregion
+
+#region // Sayfaların İsmini Değiştirme
+
+import openpyxl
+
+dosya_adi = "Nirvana.xlsx"
+
+# Eski sayfa adları -> Yeni sayfa adları
+sayfa_adi_haritasi = {
+    "Sheet1": "Genel Rapor",
+    "Sheet1_Copy": "RPT Raporu",
+    "Sheet2_Copy": "İndirim Raporu"
+}
+
+# Excel dosyasını aç
+workbook = openpyxl.load_workbook(dosya_adi)
+
+# Her bir eşleşmeyi kontrol ederek isim değiştirme
+for eski_ad, yeni_ad in sayfa_adi_haritasi.items():
+    if eski_ad in workbook.sheetnames:
+        # Aynı yeni isim kullanılıyorsa çakışmayı önlemek için kontrol edebilirsiniz
+        if yeni_ad in workbook.sheetnames:
+            print(f"'{yeni_ad}' isimli bir sayfa zaten var. Lütfen farklı bir isim kullanın.")
+        else:
+            workbook[eski_ad].title = yeni_ad
+            
+    else:
+        print(f"'{eski_ad}' isimli bir sayfa bulunamadı, atlanıyor.")
+
+# Değişiklikleri kaydet
+workbook.save(dosya_adi)
+
+#endregion
