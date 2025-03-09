@@ -173,6 +173,8 @@ if __name__ == "__main__":
 
 
 
+colorama.init(autoreset=True)
+
 # Gizli modda Chrome ayarları
 chrome_options = Options()
 chrome_options.add_argument("--headless")  # Tarayıcıyı ekranda göstermemek için
@@ -206,12 +208,12 @@ try:
     driver.find_element(By.CSS_SELECTOR, "button[type='submit']").click()
     time.sleep(3)  # Giriş sonrası bekleme süresi
 
-    # Belirtilen sayfaya git
+    # Hedef sayfaya git
     driver.get(desired_page_url)
     time.sleep(2)
 
     # Dünün tarihini (gün ve ay için başında sıfır olmadan) alalım
-    yesterday = datetime.now() - timedelta(days=1)
+    yesterday = datetime.datetime.now() - datetime.timedelta(days=1)
     formatted_date_no_leading = f"{yesterday.day}.{yesterday.month}.{yesterday.year}"
 
     # EndDate alanını bulma ve tarih girişini yapma
@@ -228,14 +230,13 @@ try:
     save_button = driver.find_element(By.CSS_SELECTOR, 'button.btn.btn-primary[name="save"]')
     save_button.click()
 
-    print(Fore.GREEN + "Tarih ayarlama işlemi başarılı!" + Style.RESET_ALL)
-
 except Exception as e:
     print(Fore.RED + f"Hata oluştu: {e}" + Style.RESET_ALL)
 
 finally:
     # Tarayıcıyı kapat
     driver.quit()
+
 
 
 
