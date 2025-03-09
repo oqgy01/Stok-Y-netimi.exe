@@ -26,13 +26,24 @@ import json
 import datetime
 import warnings
 import copy
+import colorama
+from colorama import Fore, Style
 init(autoreset=True)
 warnings.filterwarnings("ignore")
-
+colorama.init(autoreset=True)
 
 #endregion
 
 #region // Entegrasyondan Önce mi Sonra mı Kontrolü ve Satış Raporu Tarihini Düne Göre Ayarlama
+
+
+
+
+
+
+
+
+
 
 def list_detail_with_http_client():
     # 1) Giriş (login) isteği
@@ -143,6 +154,111 @@ def list_detail_with_http_client():
 
 if __name__ == "__main__":
     list_detail_with_http_client()
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+# Gizli modda Chrome ayarları
+chrome_options = Options()
+chrome_options.add_argument("--headless")  # Tarayıcıyı ekranda göstermemek için
+chrome_options.add_argument("--incognito")  # Gizli modda çalıştırmak için
+chrome_options.add_argument("--disable-gpu")
+chrome_options.add_argument("--no-sandbox")
+chrome_options.add_argument("--disable-dev-shm-usage")
+
+# ChromeDriver hizmeti
+service = Service()
+
+# Tarayıcı başlat
+driver = webdriver.Chrome(service=service, options=chrome_options)
+
+# Kullanıcı bilgileri
+username = "mustafa_kod@haydigiy.com"
+password = "123456"
+
+# URL'ler
+login_url = "https://www.siparis.haydigiy.com/kullanici-giris/?ReturnUrl=%2Fadmin"
+desired_page_url = "https://www.siparis.haydigiy.com/admin/exportorder/edit/154/"
+
+try:
+    # Giriş sayfasına git
+    driver.get(login_url)
+    time.sleep(2)  # Sayfanın yüklenmesini bekleyin
+
+    # Giriş bilgilerini doldur
+    driver.find_element(By.NAME, "EmailOrPhone").send_keys(username)
+    driver.find_element(By.NAME, "Password").send_keys(password)
+    driver.find_element(By.CSS_SELECTOR, "button[type='submit']").click()
+    time.sleep(3)  # Giriş sonrası bekleme süresi
+
+    # Belirtilen sayfaya git
+    driver.get(desired_page_url)
+    time.sleep(2)
+
+    # Dünün tarihini (gün ve ay için başında sıfır olmadan) alalım
+    yesterday = datetime.now() - timedelta(days=1)
+    formatted_date_no_leading = f"{yesterday.day}.{yesterday.month}.{yesterday.year}"
+
+    # EndDate alanını bulma ve tarih girişini yapma
+    end_date_input = driver.find_element(By.ID, "EndDate")
+    end_date_input.clear()
+    end_date_input.send_keys(formatted_date_no_leading)
+
+    # StartDate alanını bulma ve tarih girişini yapma
+    start_date_input = driver.find_element(By.ID, "StartDate")
+    start_date_input.clear()
+    start_date_input.send_keys(formatted_date_no_leading)
+
+    # Kaydet butonunu bulma ve tıklama
+    save_button = driver.find_element(By.CSS_SELECTOR, 'button.btn.btn-primary[name="save"]')
+    save_button.click()
+
+    print(Fore.GREEN + "Tarih ayarlama işlemi başarılı!" + Style.RESET_ALL)
+
+except Exception as e:
+    print(Fore.RED + f"Hata oluştu: {e}" + Style.RESET_ALL)
+
+finally:
+    # Tarayıcıyı kapat
+    driver.quit()
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
 
 #endregion
 
