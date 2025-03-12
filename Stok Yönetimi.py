@@ -334,6 +334,47 @@ def build_urun_adi_ve_renk(row):
 final_merged_df["UrunAdi ve Renk"] = final_merged_df.apply(build_urun_adi_ve_renk, axis=1)
 
 # ------------------------------------------------------------
+# YENİ EKLEME: "urunyonetimi" Tablosundan "id, urunkodu, renk, fiyat" Kolonlarını Çekip
+# ID En Büyük Olan Kaydı Baz Alarak "Satın Alma Fiyatı" Sütununu Oluşturma
+# ------------------------------------------------------------
+
+# 1) Supabase'den veriyi alıyoruz
+response_data_fiyat = supabase.table("urunyonetimi").select("id, urunkodu, renk, alisfiyati").execute()
+df_urunyonetimi_fiyat = pd.DataFrame(response_data_fiyat.data)
+
+# 2) urunkodu ve renk'i birleştireceğimiz kolon
+df_urunyonetimi_fiyat["urunkodu_renk"] = df_urunyonetimi_fiyat["urunkodu"].astype(str) + " - " + df_urunyonetimi_fiyat["renk"].astype(str)
+
+# 3) Aynı urunkodu_renk'e sahip birden fazla satır varsa, ID değeri en büyük olanı al
+#    Bunun için önce ID'ye göre azalan sıralama yapar, sonra drop_duplicates ile en üsttekini tutarız.
+df_urunyonetimi_fiyat.sort_values("id", ascending=False, inplace=True)
+df_urunyonetimi_fiyat.drop_duplicates(subset=["urunkodu_renk"], keep="first", inplace=True)
+
+# 4) final_merged_df ile merge
+final_merged_df = final_merged_df.merge(
+    df_urunyonetimi_fiyat[["urunkodu_renk", "alisfiyati"]],
+    how="left",
+    left_on="UrunAdi ve Renk",
+    right_on="urunkodu_renk"
+)
+
+# 5) Gelen "fiyat" kolonunu "Satın Alma Fiyatı" olarak yeniden adlandırıyoruz
+final_merged_df.rename(columns={"alisfiyati": "Son Satın Alma Fiyatı"}, inplace=True)
+
+# 6) "urunkodu_renk" geçici kolonunu atabiliriz
+final_merged_df.drop("urunkodu_renk", axis=1, inplace=True)
+
+# 7) "Satın Alma Fiyatı" kolonunu "AlisFiyati" kolonunun hemen sağına yerleştirelim
+cols = list(final_merged_df.columns)
+if "AlisFiyati" in cols and "Son Satın Alma Fiyatı" in cols:
+    alis_idx = cols.index("AlisFiyati")
+    satinalma_idx = cols.index("Son Satın Alma Fiyatı")
+    col_to_move = cols.pop(satinalma_idx)
+    cols.insert(alis_idx + 1, col_to_move)
+    final_merged_df = final_merged_df[cols]
+
+
+# ------------------------------------------------------------
 # 4) GMT ve SİTA Verilerini Çekme (Supabase tablosu "urunyonetimi")
 # ------------------------------------------------------------
 
@@ -449,6 +490,26 @@ df_sita_final = df_sita_final.drop(used_sita_indices_step2).reset_index(drop=Tru
 # ------------------------------------------------------------
 
 df_calisma_alani.to_excel("Nirvana.xlsx", index=False)
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
 
 
 
@@ -777,18 +838,16 @@ def duzenleme_islemleri(dosya_adi="Nirvana.xlsx", sayfa_adi="Sheet1"):
                         kar_hucre.value = None
 
     # ------------------------------------------------
-    # 2) "Stoksuz Üründe Hareket Var mı?" adında yeni bir kolon oluştur
+    # "Üründe Hareket Var mı?" adında yeni bir kolon oluşturma
     # ------------------------------------------------
-    # Mantık:
-    # - "Resim" kolonu boşsa veya 0 ise => "Resim Yok"
-    # - Aksi halde eğer "Stok Adedi Her Şey Dahil" <= 0 ve
-    #   ("MorhipoKodu" > 0 ya da "Adet" > 0) => "Evet"
-    # - Yoksa => "Hayır"
-    #
-    # Bu yeni sütunu en sona ekliyoruz
+
+    # ------------------------------------------------
+    # 2) "Üründe Hareket Var mı?" adında yeni bir kolon oluştur
+    # ------------------------------------------------
     yeni_kolon_sira = sheet.max_column + 1
-    sheet.cell(row=1, column=yeni_kolon_sira).value = "Stoksuz Üründe Hareket Var mı?"
-    # Başlıklar güncel
+    sheet.cell(row=1, column=yeni_kolon_sira).value = "Üründe Hareket Var mı?"
+
+    # Başlıkları güncelleyelim
     basliklar = {}
     for cell in sheet[1]:
         if cell.value:  # None değilse
@@ -797,34 +856,41 @@ def duzenleme_islemleri(dosya_adi="Nirvana.xlsx", sayfa_adi="Sheet1"):
     # İlgili kolon indeksleri
     resim_kolon = basliklar.get("Resim")
     stok_hersey_kolon = basliklar.get("Stok Adedi Her Şey Dahil")
-    morhipo_kodu_kolon = basliklar.get("MorhipoKodu")
-    adet_kolon = basliklar.get("Adet")
+    gunluk_ort_satis_kolon = basliklar.get("MorhipoKodu")
+    dunun_satis_kolon = basliklar.get("Adet")
 
     for row in range(2, sheet.max_row + 1):
         sonuc_hucre = sheet.cell(row=row, column=yeni_kolon_sira)
-        # Varsayılan
-        sonuc_hucre.value = "Hayır"
+        
+        # 1) RESİM KONTROLÜ
+        resim_deger = sheet.cell(row=row, column=resim_kolon).value if resim_kolon else None
+        if not resim_deger or resim_deger == 0:
+            sonuc_hucre.value = "Resim Yok"
+            continue
 
-        if resim_kolon:
-            resim_deger = sheet.cell(row=row, column=resim_kolon).value
-            if not resim_deger or resim_deger == 0:
-                sonuc_hucre.value = "Resim Yok"
-                continue
-
-        # Resim varsa diğer kontrol
-        if stok_hersey_kolon and morhipo_kodu_kolon and adet_kolon:
-            stok_hersey_deger = sheet.cell(row=row, column=stok_hersey_kolon).value
-            morhipo_deger = sheet.cell(row=row, column=morhipo_kodu_kolon).value
-            adet_deger = sheet.cell(row=row, column=adet_kolon).value
-
-            stok_hersey_deger = stok_hersey_deger if stok_hersey_deger else 0
-            morhipo_deger = morhipo_deger if morhipo_deger else 0
-            adet_deger = adet_deger if adet_deger else 0
-
-            # Koşul: "Stok Adedi Her Şey Dahil" <= 0 ve (morhipo > 0 veya adet > 0)
-            if stok_hersey_deger <= 0 and (morhipo_deger > 0 or adet_deger > 0):
-                sonuc_hucre.value = "Evet"
-
+        # 2) İLGİLİ KOLONLARI AL
+        stok_deger = sheet.cell(row=row, column=stok_hersey_kolon).value if stok_hersey_kolon else 0
+        gunluk_ort_satis = sheet.cell(row=row, column=gunluk_ort_satis_kolon).value if gunluk_ort_satis_kolon else 0
+        dunun_satis = sheet.cell(row=row, column=dunun_satis_kolon).value if dunun_satis_kolon else 0
+        
+        # None gelirse 0 kabul edelim
+        stok_deger = stok_deger if stok_deger else 0
+        gunluk_ort_satis = gunluk_ort_satis if gunluk_ort_satis else 0
+        dunun_satis = dunun_satis if dunun_satis else 0
+        
+        # 3) EVET KONTROLÜ
+        # "Evet" => Günlük Ortalama Satış Adedi > 0 veya Dünün Satış Adedi > 0
+        if (gunluk_ort_satis > 0) or (dunun_satis > 0) or (stok_deger > 0):
+            sonuc_hucre.value = "Evet"
+        
+        # 4) HAYIR KONTROLÜ
+        # "Hayır" => Stok <= 0 VE Günlük Ortalama Satış Adedi <= 0 VE Dünün Satış Adedi <= 0
+        elif (stok_deger <= 0) and (gunluk_ort_satis <= 0) and (dunun_satis <= 0):
+            sonuc_hucre.value = "Hayır"
+        
+        # 5) EĞER HİÇBİRİ TUTMADIYSA
+        else:
+            sonuc_hucre.value = "Hayır"
     # ------------------------------------------------
     # 3) TrendyolKodu ve VaryasyonTrendyolKodu kolonlarındaki
     #    veriler için ilk boşluktan sonraki kısmı temizle
@@ -897,7 +963,7 @@ def duzenleme_islemleri(dosya_adi="Nirvana.xlsx", sayfa_adi="Sheet1"):
     final_order = [
 
         "Ürün Adı",
-        "Stoksuz Üründe Hareket Var mı?",
+        "Üründe Hareket Var mı?",
         "Instagram Stok Adedi",
         "Stok Adedi Her Şey Dahil",
         "Stok Adedi Site ve Vega",
@@ -909,6 +975,7 @@ def duzenleme_islemleri(dosya_adi="Nirvana.xlsx", sayfa_adi="Sheet1"):
         "Kaç Güne Biter Site ve Vega",
         "Resim",
         "Alış Fiyatı",
+        "Son Satın Alma Fiyatı",
         "Satış Fiyatı",
         "Liste Fiyatı",
         "Kar Yüzdesi",
@@ -1018,6 +1085,9 @@ if __name__ == "__main__":
 
 
 
+
+
+
 import openpyxl
 from openpyxl.styles import Alignment, Font, PatternFill, Border, Side
 from openpyxl.utils import get_column_letter
@@ -1075,12 +1145,16 @@ def tablo_duzenleme(dosya_adi="Nirvana.xlsx", sayfa_adi="Sheet1"):
     for col in sheet.iter_cols(min_row=1, max_col=sheet.max_column, max_row=sheet.max_row):
         max_length = 0
         col_letter = get_column_letter(col[0].column)
-        for cell_obj in col:
+        
+        # Başlık satırını (col[0]) atlayarak veri uzunluğunu ölç
+        for cell_obj in col[1:]:
             value = cell_obj.value
             if value is not None:
                 length = len(str(value))
                 if length > max_length:
                     max_length = length
+
+        # Sütun genişliğini belirle
         optimal_width = max(min_width_chars, max_length + 2)
         sheet.column_dimensions[col_letter].width = optimal_width
 
@@ -1141,10 +1215,6 @@ def tablo_duzenleme(dosya_adi="Nirvana.xlsx", sayfa_adi="Sheet1"):
 
 if __name__ == "__main__":
     tablo_duzenleme()
-
-
-
-
 
 
 
@@ -1312,11 +1382,8 @@ def filter_indirim_sheet_with_styles(
 
                 # Ek olarak, "Ürün Adı" hücresine hyperlink verelim
                 if (resim_col_idx is not None) and (urun_adi_col_idx is not None):
-                    # Kaynaktaki 'Resim' hücre değeri:
                     link_value = source_sheet.cell(row=r, column=resim_col_idx).value
-                    # Hedefteki 'Ürün Adı' hücresi:
                     product_name_cell = target_sheet.cell(row=target_row_idx, column=urun_adi_col_idx)
-                    # Hyperlink'i ekliyoruz (stil değiştirmiyoruz)
                     if link_value:
                         product_name_cell.hyperlink = str(link_value)
 
@@ -1355,28 +1422,24 @@ def main():
         "GMT Stok Adedi",
         "SİTA Stok Adedi",
         "Mevsim",
-        "Net Satış Tarihi ve Adedi",
         "Son Transfer Tarihi",
         "Son İndirim Tarihi",
         "Resim",
-        "Marka"
+        "Marka",
+        "Liste Fiyatı",
     ]
     hide_columns_by_header(wb["RPT Raporu"], rpt_hide_cols)
 
     # c) İndirim Raporu (ilk etapta 'Resim' ve 'Marka' kolonlarını gizle)
     hide_columns_by_header(
         wb["İndirim Raporu"],
-        ["Resim", "Marka"]
+        ["Resim", "Marka", "Üründe Hareket Var mı?", "Stok Adedi Site ve Vega", "Kaç Güne Biter Site ve Vega", "Liste Fiyatı", "GMT Stok Adedi", "SİTA Stok Adedi", "Mevsim", "Net Satış Tarihi ve Adedi"]
     )
 
-    # 4) "İndirim Raporu" sayfasında
-    #    - Instagram Stok Adedi <= 0 => satır atla
-    #    - Resim kolonu boş => satır atla
-    #    - Sonra kalan satırların 'Ürün Adı' hücresine, 'Resim' kolonundaki linki hyperlink olarak ekle
-    #    Bunun için yeni bir geçici sayfa oluşturalım.
+    # 4) "İndirim Raporu" sayfasında filtreleme
     temp_sheet_name = "Temp_Indirim"
     if temp_sheet_name in wb.sheetnames:
-        del wb[temp_sheet_name]  # varsa önce sil
+        del wb[temp_sheet_name]
 
     temp_sheet = wb.create_sheet(temp_sheet_name)
 
@@ -1388,21 +1451,21 @@ def main():
         urun_adi_header="Ürün Adı"
     )
 
-    # 5) Orijinal "İndirim Raporu" sayfasını sil, temp'i yeniden adlandır
+    # Orijinal "İndirim Raporu" sayfasını sil, temp'i yeniden adlandır
     del wb["İndirim Raporu"]
     temp_sheet.title = "İndirim Raporu"
 
-    # 5.1) Tekrar 'Resim' ve 'Marka' kolonlarını gizleyelim (yeni sayfada da olsun)
+    # Tekrar 'Resim' ve 'Marka' kolonlarını gizle (yeni sayfa)
     hide_columns_by_header(
         wb["İndirim Raporu"],
-        ["Resim", "Marka"]
+        ["Resim", "Marka", "Üründe Hareket Var mı?", "Stok Adedi Site ve Vega", "Kaç Güne Biter Site ve Vega", "Liste Fiyatı", "GMT Stok Adedi", "SİTA Stok Adedi", "Mevsim", "Net Satış Tarihi ve Adedi"]
     )
 
     # 6) Başlık satırlarını dondur ve zoom ayarını %90 yap
     for sheet_name in ["Genel Rapor", "RPT Raporu", "İndirim Raporu"]:
         sh = wb[sheet_name]
-        freeze_header(sh)            # ilk satırı dondur
-        sh.sheet_view.zoomScale = 90  # %90 yakınlaştırma
+        freeze_header(sh)
+        sh.sheet_view.zoomScale = 90
 
     # 7) RPT Raporu ve İndirim Raporu sayfalarına tablo stili ekle
     apply_table_format(wb["RPT Raporu"], table_name="RPTTable", style_name="TableStyleMedium9")
@@ -1414,7 +1477,7 @@ def main():
     # 9) 3 sayfada da 'Kar Yüzdesi' kolonundaki verileri 100 ile çarp
     for sheet_name in ["Genel Rapor", "RPT Raporu", "İndirim Raporu"]:
         sheet = wb[sheet_name]
-        # Önce "Kar Yüzdesi" kolonunun indeksini bulalım
+        # Önce "Kar Yüzdesi" kolonunu bul
         kar_col_idx = None
         for col_index in range(1, sheet.max_column + 1):
             if sheet.cell(row=1, column=col_index).value == "Kar Yüzdesi":
@@ -1422,13 +1485,55 @@ def main():
                 break
 
         if kar_col_idx:
-            # 2. satırdan son satıra kadar, hücre değerini 100 ile çarparak güncelle
+            # 2. satırdan son satıra kadar değeri 100 ile çarp
             for row_index in range(2, sheet.max_row + 1):
                 val = sheet.cell(row=row_index, column=kar_col_idx).value
                 if isinstance(val, (int, float)):
                     sheet.cell(row=row_index, column=kar_col_idx).value = val * 100
 
-    # Tekrar kaydedelim ki değişiklikler de dosyada olsun
+    # -------------------------------------------------------------------------
+    # İSTENEN EKLEME: 3 sayfada da "Liste Fiyatı" ve "Satış Fiyatı" farkı %5'i aşıyorsa
+    # "Alış Fiyatı" hücresinin yazı rengini kırmızı yapalım
+    # -------------------------------------------------------------------------
+    for sheet_name in ["Genel Rapor", "RPT Raporu", "İndirim Raporu"]:
+        sheet = wb[sheet_name]
+
+        # Kolon indekslerini bulalım
+        liste_fiyati_idx = None
+        satis_fiyati_idx = None
+        alis_fiyati_idx = None
+
+        for col_index in range(1, sheet.max_column + 1):
+            header_val = sheet.cell(row=1, column=col_index).value
+            if header_val == "Liste Fiyatı":
+                liste_fiyati_idx = col_index
+            elif header_val == "Satış Fiyatı":
+                satis_fiyati_idx = col_index
+            elif header_val == "Alış Fiyatı":
+                alis_fiyati_idx = col_index
+
+        # Eğer bu kolonlar varsa kontrol edelim
+        if liste_fiyati_idx and satis_fiyati_idx and alis_fiyati_idx:
+            for row_index in range(2, sheet.max_row + 1):
+                try:
+                    list_val = float(sheet.cell(row=row_index, column=liste_fiyati_idx).value or 0)
+                    satis_val = float(sheet.cell(row=row_index, column=satis_fiyati_idx).value or 0)
+                    
+                    # Liste Fiyatı 0 değilse hesaplama yapalım
+                    if list_val != 0:
+                        fark = list_val - satis_val
+                        yuzde = (fark / list_val) * 100
+                        if yuzde > 5:
+                            # Alış Fiyatı hücresinin yazı rengini kırmızıya çevir
+                            cell_alis = sheet.cell(row=row_index, column=alis_fiyati_idx)
+                            existing_font = copy(cell_alis.font)
+                            existing_font.color = "FF0000"  # Kırmızı
+                            cell_alis.font = existing_font
+                except:
+                    # Herhangi bir hatada (None, string vs.), atla
+                    pass
+
+    # Tüm değişiklikleri kaydet
     wb.save(workbook_path)
 
 if __name__ == "__main__":
