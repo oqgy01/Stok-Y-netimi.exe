@@ -1538,3 +1538,113 @@ def main():
 
 if __name__ == "__main__":
     main()
+
+
+
+
+
+
+
+
+import openpyxl
+from openpyxl.utils import get_column_letter
+
+# Dosyayı yükle
+workbook = openpyxl.load_workbook("Nirvana.xlsx")
+worksheet = workbook["RPT Raporu"]
+
+# Başlık satırındaki kolon isimlerini ve indekslerini tespit edelim (1. satır)
+kolon_indexleri = {}
+for idx, hucre in enumerate(worksheet[1], start=1):
+    kolon_indexleri[hucre.value] = idx
+
+# "Liste Fiyatı" ve "Satış Fiyatı" kolonlarının indekslerini alalım
+liste_fiyati_col = kolon_indexleri.get("Liste Fiyatı")
+satis_fiyati_col = kolon_indexleri.get("Satış Fiyatı")
+
+if liste_fiyati_col is None or satis_fiyati_col is None:
+    raise ValueError("Gerekli kolonlardan biri bulunamadı: 'Liste Fiyatı' veya 'Satış Fiyatı'.")
+
+# Yeni kolonun (İndirim Oranı) ekleneceği indeks
+yeni_kolon = worksheet.max_column + 1
+worksheet.cell(row=1, column=yeni_kolon, value="İndirim Oranı")
+
+# Veriler üzerinde işlem yapalım (başlık satırından sonraki satırlar)
+for satir in worksheet.iter_rows(min_row=2, max_row=worksheet.max_row):
+    liste_deger = satir[liste_fiyati_col - 1].value  # 0 tabanlı indeksleme
+    satis_deger = satir[satis_fiyati_col - 1].value
+
+    # Liste Fiyatı değerinin geçerli ve sıfırdan farklı olduğundan emin olalım
+    if liste_deger is not None and satis_deger is not None and liste_deger != 0:
+        indirim_orani = (liste_deger - satis_deger) / liste_deger * 100
+        worksheet.cell(row=satir[0].row, column=yeni_kolon, value=indirim_orani)
+        
+        # Eğer indirim oranı 10 veya daha büyükse satırı gizle
+        if indirim_orani >= 10:
+            worksheet.row_dimensions[satir[0].row].hidden = True
+    else:
+        # Geçerli veri yoksa yeni kolonda boş bırak
+        worksheet.cell(row=satir[0].row, column=yeni_kolon, value=None)
+
+# Yeni oluşturduğumuz "İndirim Oranı" kolonunu gizleyelim
+col_letter = get_column_letter(yeni_kolon)
+worksheet.column_dimensions[col_letter].hidden = True
+
+# Sonucu yeni bir dosyaya kaydedelim
+workbook.save("Nirvana.xlsx")
+
+
+
+
+
+
+
+
+
+import openpyxl
+from openpyxl.comments import Comment
+
+# Açıklama metinlerini içeren sözlük
+aciklamalar = {
+    "Ürün Adı": "Ürünün satıştaki adını belirtir.",
+    "Üründe Hareket Var mı?": 'Bu alanda "Hayır" seçeneğin işareti kaldırılırsa, üründen hiçbir yerde yok ise ve aynı zamanda satışında da yakın zamanda bir hareket yok ise bu satırları gizle anlamına gelecektir.',
+    "Instagram Stok Adedi": "Satıştaki stok adedini belirtir.",
+    "Stok Adedi Her Şey Dahil": "Satıştaki stok, depodaki stok, çuvaldaki stok, siparişteki stokların toplamını belirtir.",
+    "Stok Adedi Site ve Vega": "Satıştaki stokla depoda satışa hazır ürünlerin stoğunu belirtir.",
+    "Günlük Ortalama Satış Adedi": "Son 7 günde ürünün satışta kaldığı güne göre ortalama bir satış adedi belirtir.",
+    "Dünün Satış Adedi": "Ürünün dün kaç adet sattığını belirtir.",
+    "Ortalama Görüntülenme Adedi": "Son 7 günde ürünün satışta kaldığı güne göre ortalama bir görüntülenme adedi belirtir.",
+    "Görüntülenmenin Satışa Dönüş Oranı": "Son 7 günde ürünün satışta kaldığı güne göre ortalama bir görüntülenme adedi belirlenir ve bu görüntülenme adedine göre yine son 7 gündeki ortalama satışı baz alınarak bir yüzde hesabı çıkarılır.",
+    "Kaç Güne Biter Her Şey Dahil": "Her dahil stokların, ortalama satış adedi baz alınarak kaç güne biteceğin belirtir.",
+    "Kaç Güne Biter Site ve Vega": "Sadece satıştaki ve depoda satışa hazır stokların ortalama satış adedi baz alınarak kaç güne biteceğini belirtir.",
+    "Alış Fiyatı": "Ürünün siteye geçirilen alış fiyatını belirtir. NOT : Ürünü alırkenki alış fiyatını yansıtmayabilir.",
+    "Son Satın Alma Fiyatı": "Ürünün sipariş verirken yazılan son alış fiyatını belirtir.",
+    "Satış Fiyatı": "Ürünün aktif satış fiyatını belirtir.",
+    "Liste Fiyatı": "Ürünün alış fiyatına oranla olması gereken fiyatını belirtir.",
+    "Kar Yüzdesi": "Ürünün yüzde kaç karla sattığını belirtir ve hesaplaması şu şekildedir (Satış - Alış) / Satış) * 100",
+    "Resim Yüklenme Tarihi": "Ürünün resminin yüklendiği bir nevi satışa açıldığı tarihi belirtir.",
+    "Kategori": "Ürünün ana kategorisini belirtir.",
+    "GMT Stok Adedi": "Üründen çuvalda kaç adet olduğunu belirtir.",
+    "SİTA Stok Adedi": "Ürünün siparişte kaç adet olduğunu belirtir.",
+    "Mevsim": "Ürünün mevsimini belirtir.",
+    "Net Satış Tarihi ve Adedi": "Ürünün tüm renk ve bedenlerinin aynı anda satışta olduğu son günün satış tarihi ve adedini belirtir.",
+    "Son Transfer Tarihi": "Ürünün Instagram depoya en son ne zaman transfer edildiğini belirtir.",
+    "Son İndirim Tarihi": "Ürüne en son ne zaman indirim yapıldığını belirtir."
+}
+
+# Dosyayı aç
+workbook = openpyxl.load_workbook("Nirvana.xlsx")
+
+# Tüm sayfaları tarayalım
+for worksheet in workbook.worksheets:
+    # İlk satırdaki hücrelerde başlıklar olduğunu varsayıyoruz
+    for cell in worksheet[1]:
+        if cell.value in aciklamalar:
+            # Yorum objesini oluşturup genişlik ve yükseklik ayarını yapalım
+            comment = Comment(text=aciklamalar[cell.value], author="Auto")
+            comment.width = 200   # 200 piksel genişlik
+            comment.height = 200  # 200 piksel yükseklik
+            cell.comment = comment
+
+# Sonuç dosyasını kaydedelim
+workbook.save("Nirvana.xlsx")
