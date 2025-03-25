@@ -39,7 +39,50 @@ colorama.init(autoreset=True)
 
 #region // Entegrasyondan Önce mi Sonra mı Kontrolü
 
+import http.client
+import json
+import datetime
+
+# Supabase için gerekli kütüphane
+from supabase import create_client, Client
+
+# Supabase bağlantı bilgileri
+SUPABASE_URL = "https://zmvsatlvobhdaxxgtoap.supabase.co"
+SUPABASE_KEY = (
+    "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9."
+    "eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InptdnNhdGx2b2JoZGF4eGd0b2FwIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NDAxNzIxMzksImV4cCI6MjA1NTc0ODEzOX0."
+    "lJLudSfixMbEOkJmfv22MsRLofP7ZjFkbGj26xF3dts"
+)
+
+
 def list_detail_with_http_client():
+    # 0) Öncelikle Supabase üzerinden kategorisatis tablosundaki en büyük 'date' değerini kontrol ediyoruz
+    supabase: Client = create_client(SUPABASE_URL, SUPABASE_KEY)
+    response = (
+        supabase.table("kategorisatis")
+        .select("date")
+        .order("date", desc=True)
+        .limit(1)
+        .execute()
+    )
+
+    if not response.data:
+        print("kategorisatis tablosunda herhangi bir kayıt bulunamadı.")
+        return
+
+    max_date_str = response.data[0]["date"]  # Örnek format: "2025-03-25"
+    max_date = datetime.datetime.strptime(max_date_str, "%Y-%m-%d").date()
+    today = datetime.datetime.now().date()
+
+    # Tarih kontrolü
+    if max_date == today:
+        print("\033[92mEntegrasyondan Sonraki Listeyi Çekiyorsunuz !\033[0m")
+    else:
+        print("\033[91mDikkat Entegrasyondan Önceki Listeyi Çekiyorsunuz ! (Entegrasyondan Önceki Listeyi Çekmek Stok Adetlerinin Güncelliğini Önemli Ölçüde Etkiler) \033[0m")
+
+    # Supabase kontrolünden SONRA HTTP işlemlerine devam edebilirsiniz.
+    # ----------------------------------------------------------------
+
     # 1) Giriş (login) isteği
     conn = http.client.HTTPSConnection("siparis.haydigiy.com")
 
@@ -120,34 +163,21 @@ def list_detail_with_http_client():
         print("List-detail isteği başarısız:", data)
         return
 
-    # 3) Gelen JSON'u parse edelim
     response_data = json.loads(data)
-
     items = response_data.get("data", [])
+
     if not items:
         print("Herhangi bir ürün kaydı bulunamadı.")
         return
 
-    first_item = items[0]
-    created_on_str = first_item.get("createdOn")
-    if not created_on_str:
-        print("İlk üründe 'createdOn' alanı yok.")
-        return
+    # Burada artık 'createdOn' kontrolü yerine Supabase tarihini kullandığımız için
+    # ek bir kontrol yapmamıza gerek yok. İsterseniz 'createdOn' alanını da kullanabilirsiniz.
 
-    # 4) createdOn değerini ISO formatından datetime'a çevirelim
-    try:
-        created_on_dt = datetime.datetime.fromisoformat(created_on_str.replace("Z", ""))
-        today = datetime.datetime.now().date()
-        if created_on_dt.date() == today:
-            print("\033[92mEntegrasyondan Sonraki Listeyi Çekiyorsunuz !\033[0m")
-        else:
-            print("\033[91mDikkat Entegrasyondan Önceki Listeyi Çekiyorsunuz !\033[0m")
 
-    except ValueError:
-        print("createdOn alanı beklenmeyen bir formatta:", created_on_str)
 
 if __name__ == "__main__":
     list_detail_with_http_client()
+
 
 #endregion
 
