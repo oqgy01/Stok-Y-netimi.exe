@@ -671,11 +671,37 @@ df_calisma_alani['Kategori'] = df_calisma_alani['Kategori'].fillna("")
 def extract_category(text):
     if not isinstance(text, str):
         return None
-    match = re.search(r'>\s*([^;]+)', text)
-    if match:
-        return match.group(1).strip()
-    elif "TESETTÜR" in text:
+    
+    # 1) Önce TESETTÜR kontrolü
+    if "TESETTÜR" in text:
         return "TESETTÜR"
+    
+    # 2) ";" üzerinden parçalara ayır
+    parts = text.split(';')
+    
+    # 3) Her parçadaki kategori metnini ">" ya da ">>" den sonra al
+    categories = []
+    for part in parts:
+        # Hem ">>" hem ">" durumunu yakalamak için split kalıbı
+        sub_parts = re.split(r'>>|>', part)
+        if len(sub_parts) > 1:
+            # Son kısım kategoriyi tutar (ör: " Viskon Bluz" gibi)
+            cat = sub_parts[-1].strip()
+            categories.append(cat)
+    
+    # 4) Tek kategori geldiyse eski mantık (ilk bulunan) geçerli
+    if len(categories) == 1:
+        return categories[0]
+    
+    # 5) Birden çok kategori varsa "Büyük Beden" içereni at, kalanı döndür
+    if len(categories) > 1:
+        for cat in categories:
+            if "Büyük Beden" not in cat:
+                return cat  # "Büyük Beden" içermeyeni bulunca döndürür
+        # Eğer hepsi "Büyük Beden" içeriyorsa ilk olanı döndürelim (ya da farklı bir mantık uygulanabilir)
+        return categories[0]
+    
+    # Hiç kategori bulunamadıysa None dön
     return None
 
 df_calisma_alani['Kategori'] = df_calisma_alani['Kategori'].apply(extract_category)
@@ -1417,8 +1443,6 @@ def main():
         "Ortalama Görüntülenme Adedi",
         "Kaç Güne Biter Site ve Vega",
         "Satış Fiyatı",
-        "Resim Yüklenme Tarihi",
-        "Kategori",
         "GMT Stok Adedi",
         "SİTA Stok Adedi",
         "Mevsim",
