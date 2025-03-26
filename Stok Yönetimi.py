@@ -29,6 +29,11 @@ import copy
 import colorama
 from copy import copy
 from openpyxl.worksheet.table import Table, TableStyleInfo
+import sys
+
+
+
+
 
 
 init(autoreset=True)
@@ -274,6 +279,10 @@ final_df = pd.merge(unique_df, stokadedi_sums, on="UrunAdi", how="left")
 # 2) Satış Raporu İndirme (Selenium) + Bellekte Parse Edip final_df'ye Ekleme
 # ------------------------------------------------------------
 
+
+
+colorama.init()
+
 chrome_options = Options()
 chrome_options.add_argument("--headless")
 chrome_options.add_argument("--incognito")
@@ -318,6 +327,7 @@ try:
 
 except Exception as e:
     print(colorama.Fore.RED + f"Giriş veya tarih ayarı sırasında hata: {e}" + colorama.Style.RESET_ALL)
+    raise  # Hata sonrası kodun tamamen durması için hatayı tekrar fırlatıyoruz
 
 finally:
     driver.quit()
