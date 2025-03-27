@@ -1482,7 +1482,6 @@ def main():
         "Stok Adedi Site ve Vega",
         "Ortalama Görüntülenme Adedi",
         "Kaç Güne Biter Site ve Vega",
-        "Satış Fiyatı",
         "GMT Stok Adedi",
         "SİTA Stok Adedi",
         "Mevsim",
