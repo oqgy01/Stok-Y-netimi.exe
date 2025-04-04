@@ -31,21 +31,6 @@ from copy import copy
 from openpyxl.worksheet.table import Table, TableStyleInfo
 import sys
 from openpyxl.styles import Alignment, Font, PatternFill, Border, Side
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
 init(autoreset=True)
 warnings.filterwarnings("ignore")
 colorama.init(autoreset=True)
@@ -287,8 +272,6 @@ final_df = pd.merge(unique_df, stokadedi_sums, on="UrunAdi", how="left")
 # 2) Satış Raporu İndirme (Selenium) + Bellekte Parse Edip final_df'ye Ekleme
 # ------------------------------------------------------------
 
-
-
 colorama.init()
 
 chrome_options = Options()
@@ -382,7 +365,7 @@ def build_urun_adi_ve_renk(row):
 final_merged_df["UrunAdi ve Renk"] = final_merged_df.apply(build_urun_adi_ve_renk, axis=1)
 
 # ------------------------------------------------------------
-# YENİ EKLEME: "urunyonetimi" Tablosundan "id, urunkodu, renk, fiyat" Kolonlarını Çekip
+# YENİ EKLEME: "urunyonetimi" Tablosundan "id, urunkodu, renk, alisfiyati" Kolonlarını Çekip
 # ID En Büyük Olan Kaydı Baz Alarak "Satın Alma Fiyatı" Sütununu Oluşturma
 # ------------------------------------------------------------
 
@@ -394,7 +377,6 @@ df_urunyonetimi_fiyat = pd.DataFrame(response_data_fiyat.data)
 df_urunyonetimi_fiyat["urunkodu_renk"] = df_urunyonetimi_fiyat["urunkodu"].astype(str) + " - " + df_urunyonetimi_fiyat["renk"].astype(str)
 
 # 3) Aynı urunkodu_renk'e sahip birden fazla satır varsa, ID değeri en büyük olanı al
-#    Bunun için önce ID'ye göre azalan sıralama yapar, sonra drop_duplicates ile en üsttekini tutarız.
 df_urunyonetimi_fiyat.sort_values("id", ascending=False, inplace=True)
 df_urunyonetimi_fiyat.drop_duplicates(subset=["urunkodu_renk"], keep="first", inplace=True)
 
@@ -409,10 +391,10 @@ final_merged_df = final_merged_df.merge(
 # 5) Gelen "fiyat" kolonunu "Satın Alma Fiyatı" olarak yeniden adlandırıyoruz
 final_merged_df.rename(columns={"alisfiyati": "Son Satın Alma Fiyatı"}, inplace=True)
 
-# 6) "urunkodu_renk" geçici kolonunu atabiliriz
+# 6) "urunkodu_renk" geçici kolonunu atıyoruz
 final_merged_df.drop("urunkodu_renk", axis=1, inplace=True)
 
-# 7) "Satın Alma Fiyatı" kolonunu "AlisFiyati" kolonunun hemen sağına yerleştirelim
+# 7) "Satın Alma Fiyatı" kolonunu "AlisFiyati" kolonunun hemen sağına yerleştiriyoruz
 cols = list(final_merged_df.columns)
 if "AlisFiyati" in cols and "Son Satın Alma Fiyatı" in cols:
     alis_idx = cols.index("AlisFiyati")
@@ -420,7 +402,6 @@ if "AlisFiyati" in cols and "Son Satın Alma Fiyatı" in cols:
     col_to_move = cols.pop(satinalma_idx)
     cols.insert(alis_idx + 1, col_to_move)
     final_merged_df = final_merged_df[cols]
-
 
 # ------------------------------------------------------------
 # 4) GMT ve SİTA Verilerini Çekme (Supabase tablosu "urunyonetimi")
@@ -468,6 +449,42 @@ df_sita_final = pd.DataFrame()
 df_sita_final["SİTA Ürün Kodu"] = pd.to_numeric(df_sita_grouped["urunkodu"], errors="coerce").astype("Int64")
 df_sita_final["SİTA Ürün Adı"] = df_sita_grouped["urunkodu"].astype(str) + " - " + df_sita_grouped["renk"]
 df_sita_final["SİTA Stok Adedi"] = df_sita_grouped["acilmamisadet"]
+
+# ------------------------------------------------------------
+# 5) DONEM Verisinin Eşleştirilmesi ve N11Kodu'na Eklenmesi (sadece boş hücreler için)
+# ------------------------------------------------------------
+
+# DB'deki "urunyonetimi" tablosundan "id, urunkodu, renk, donem" kolonlarını çekelim
+response_data_donem = supabase.table("urunyonetimi").select("id, urunkodu, renk, donem").execute()
+df_urunyonetimi_donem = pd.DataFrame(response_data_donem.data)
+
+# "urunkodu" ve "renk" kolonlarını birleştirerek eşleştirme için kolon oluşturuyoruz
+df_urunyonetimi_donem["urunkodu_renk"] = df_urunyonetimi_donem["urunkodu"].astype(str) + " - " + df_urunyonetimi_donem["renk"].astype(str)
+
+# Aynı urunkodu_renk'e sahip birden fazla satır varsa, ID değeri en büyük olanı al (azalan ID'ye göre sıralayarak)
+df_urunyonetimi_donem.sort_values("id", ascending=False, inplace=True)
+df_urunyonetimi_donem.drop_duplicates(subset=["urunkodu_renk"], keep="first", inplace=True)
+
+# Donem verisini büyük harfe çeviriyoruz
+df_urunyonetimi_donem["donem"] = df_urunyonetimi_donem["donem"].str.upper()
+
+# final_merged_df ile donem bilgisini eşleştirmek için merge yapıyoruz
+final_merged_df = final_merged_df.merge(
+    df_urunyonetimi_donem[["urunkodu_renk", "donem"]],
+    how="left",
+    left_on="UrunAdi ve Renk",
+    right_on="urunkodu_renk"
+)
+
+# N11Kodu sütunundaki boş hücrelere donem bilgisini ekliyoruz
+final_merged_df["N11Kodu"] = final_merged_df.apply(
+    lambda row: row["donem"] if (pd.isna(row["N11Kodu"]) or row["N11Kodu"] == "") and pd.notna(row["donem"]) else row["N11Kodu"],
+    axis=1
+)
+
+# Geçici oluşturulan kolonları siliyoruz
+final_merged_df.drop(["urunkodu_renk", "donem"], axis=1, inplace=True)
+
 
 # ------------------------------------------------------------
 # 5) GMT ve SİTA Verilerini Ana Tabloya Çektirme (Etopla Mantığı)
