@@ -30,6 +30,16 @@ import colorama
 from copy import copy
 from openpyxl.worksheet.table import Table, TableStyleInfo
 import sys
+from openpyxl.styles import Alignment, Font, PatternFill, Border, Side
+
+
+
+
+
+
+
+
+
 
 
 
@@ -44,12 +54,9 @@ colorama.init(autoreset=True)
 
 #region // Entegrasyondan Önce mi Sonra mı Kontrolü
 
-import http.client
-import json
-import datetime
 
 # Supabase için gerekli kütüphane
-from supabase import create_client, Client
+
 
 # Supabase bağlantı bilgileri
 SUPABASE_URL = "https://zmvsatlvobhdaxxgtoap.supabase.co"
@@ -261,7 +268,8 @@ selected_columns = [
     "N11Kodu", 
     "VaryasyonGittiGidiyorKodu",
     "TrendyolKodu",
-    "VaryasyonTrendyolKodu"
+    "VaryasyonTrendyolKodu",
+    "Ozellik"
 ]
 df = temp_df[selected_columns].copy()
 
@@ -529,6 +537,36 @@ df_sita_final = df_sita_final.drop(used_sita_indices_step2).reset_index(drop=Tru
 # 6) Tek Çıktı: "Nirvana.xlsx"
 # ------------------------------------------------------------
 
+def temizle_ozellik_metni(value):
+    """
+    Ozellik kolonundaki değeri alır.
+    Noktalı virgül ile bölünür, 
+    'Beden:', 'Renk Seçiniz:', 'Kategori Seçiniz:' ile başlayan parçaları atar,
+    geri kalan parçaları ' - ' ile birleştirerek döndürür.
+    """
+    if not isinstance(value, str):
+        return value  # metin değilse dokunma
+    # Noktalı virgüle göre parçala
+    segments = [seg.strip() for seg in value.split(';')]
+    
+    # Başlangıçları filtrelenecek listesi
+    remove_starts = ["Beden:", "Renk Seçiniz:", "Kategori Seçiniz:"]
+    
+    # Filtrelenmiş liste
+    filtered_segments = []
+    for seg in segments:
+        # Eğer seg, remove_starts içindeki herhangi bir kalıpla başlıyorsa alma
+        if any(seg.startswith(r) for r in remove_starts):
+            continue
+        filtered_segments.append(seg)
+    
+    # Kalanları " - " ile birleştir
+    return " // ".join(filtered_segments)
+
+# Kodun sonlarına doğru, excel'e yazmadan önce:
+df_calisma_alani["Ozellik"] = df_calisma_alani["Ozellik"].apply(temizle_ozellik_metni)
+
+# Ardından kayıt işlemini yapıyoruz:
 df_calisma_alani.to_excel("Nirvana.xlsx", index=False)
 
 
@@ -837,10 +875,7 @@ df_calisma_alani.to_excel("Nirvana.xlsx", index=False)
 
 
 
-import openpyxl
-import gc
-import re
-from copy import copy
+
 
 def duzenleme_islemleri(dosya_adi="Nirvana.xlsx", sayfa_adi="Sheet1"):
     # 1) Excel'i aç
@@ -1010,6 +1045,7 @@ def duzenleme_islemleri(dosya_adi="Nirvana.xlsx", sayfa_adi="Sheet1"):
         "StokAdedi": "Instagram Stok Adedi",
         "Adet": "Dünün Satış Adedi",
         "ListeFiyatı": "Liste Fiyatı",
+        "Ozellik": "Etiketler"
     }
 
     for eski, yeni in rename_map.items():
@@ -1034,7 +1070,8 @@ def duzenleme_islemleri(dosya_adi="Nirvana.xlsx", sayfa_adi="Sheet1"):
         "Stok Adedi Her Şey Dahil",
         "Stok Adedi Site ve Vega",
         "Günlük Ortalama Satış Adedi",  
-        "Dünün Satış Adedi",           
+        "Dünün Satış Adedi",  
+        "Net Satış Tarihi ve Adedi",         
         "Ortalama Görüntülenme Adedi", 
         "Görüntülenmenin Satışa Dönüş Oranı",
         "Kaç Güne Biter Her Şey Dahil",
@@ -1050,10 +1087,10 @@ def duzenleme_islemleri(dosya_adi="Nirvana.xlsx", sayfa_adi="Sheet1"):
         "GMT Stok Adedi",
         "SİTA Stok Adedi",
         "Mevsim",
-        "Net Satış Tarihi ve Adedi",
         "Son Transfer Tarihi",
         "Son İndirim Tarihi",
-        "Marka"
+        "Marka",
+        "Etiketler"
     ]
 
     # Mevcut tüm veriyi memory'e alıyoruz (list of dict)
@@ -1154,10 +1191,14 @@ if __name__ == "__main__":
 
 
 
-import openpyxl
-from openpyxl.styles import Alignment, Font, PatternFill, Border, Side
-from openpyxl.utils import get_column_letter
-from openpyxl.worksheet.table import Table, TableStyleInfo
+
+
+
+
+
+
+
+
 
 def tablo_duzenleme(dosya_adi="Nirvana.xlsx", sayfa_adi="Sheet1"):
     # 1) Excel'i aç
@@ -1284,10 +1325,7 @@ if __name__ == "__main__":
 
 
 
-import openpyxl
-from openpyxl.utils import get_column_letter
-from openpyxl.worksheet.table import Table, TableStyleInfo
-from copy import copy
+
 
 def hide_columns_by_header(sheet, headers_to_hide):
     """
@@ -1609,8 +1647,7 @@ if __name__ == "__main__":
 
 
 
-import openpyxl
-from openpyxl.utils import get_column_letter
+
 
 # Dosyayı yükle
 workbook = openpyxl.load_workbook("Nirvana.xlsx")
@@ -1664,8 +1701,7 @@ workbook.save("Nirvana.xlsx")
 
 
 
-import openpyxl
-from openpyxl.comments import Comment
+
 
 # Açıklama metinlerini içeren sözlük
 aciklamalar = {
@@ -1692,7 +1728,8 @@ aciklamalar = {
     "Mevsim": "Ürünün mevsimini belirtir.",
     "Net Satış Tarihi ve Adedi": "Ürünün tüm renk ve bedenlerinin aynı anda satışta olduğu son günün satış tarihi ve adedini belirtir.",
     "Son Transfer Tarihi": "Ürünün Instagram depoya en son ne zaman transfer edildiğini belirtir.",
-    "Son İndirim Tarihi": "Ürüne en son ne zaman indirim yapıldığını belirtir."
+    "Son İndirim Tarihi": "Ürüne en son ne zaman indirim yapıldığını belirtir.",
+    "Etiketler": "Ürüne tanımlanan etiketleri gösterir mesela paça tipi gibi"
 }
 
 # Dosyayı aç
