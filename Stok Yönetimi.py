@@ -31,6 +31,8 @@ from copy import copy
 from openpyxl.worksheet.table import Table, TableStyleInfo
 import sys
 from openpyxl.styles import Alignment, Font, PatternFill, Border, Side
+from openpyxl import load_workbook
+from openpyxl.styles import PatternFill, Font, Alignment
 init(autoreset=True)
 warnings.filterwarnings("ignore")
 colorama.init(autoreset=True)
@@ -239,6 +241,7 @@ temp_df = pd.read_excel(BytesIO(response))
 
 # Kullanmak istediğimiz sütunlar
 selected_columns = [
+    "StokKodu",
     "UrunAdi", 
     "StokAdedi", 
     "AlisFiyati", 
@@ -554,37 +557,86 @@ df_sita_final = df_sita_final.drop(used_sita_indices_step2).reset_index(drop=Tru
 # 6) Tek Çıktı: "Nirvana.xlsx"
 # ------------------------------------------------------------
 
+def size_sort_key(s):
+    """
+    Beden değerlerinin sıralanması için özel anahtar.
+    - Önce eğer tamamen sayısal ise numerik olarak sıralar (örneğin: 32, 34, 35).
+    - Ardından '2XL', '3XL' gibi kalıpları, varsa karşılıklarını (XL, XXL, XXXL) kullanarak sıralar.
+    - Eğer değer, ["XXS", "XS", "S", "M", "L", "XL", "XXL", "XXXL"] dizisindeyse bu sıraya göre sıralar.
+    - Diğer durumlarda alfabetik sıralama kullanılır.
+    """
+    s_clean = s.strip().upper()
+    s_numeric = s_clean.replace(" ", "")
+    if s_numeric.isdigit():
+        return (0, int(s_numeric))
+    # '2XL', '3XL' gibi kalıplar için kontrol
+    match = re.match(r'^(\d+)XL$', s_clean)
+    if match:
+        num = int(match.group(1))
+        mapping = {1: "XL", 2: "XXL", 3: "XXXL"}
+        common_order = ["XXS", "XS", "S", "M", "L", "XL", "XXL", "XXXL"]
+        if num in mapping:
+            return (1, common_order.index(mapping[num]))
+        else:
+            # Tanımlı aralık dışında kalanları büyük bir değerle sıralamanın sonuna alır
+            return (1, 1000 + num)
+    common_order = ["XXS", "XS", "S", "M", "L", "XL", "XXL", "XXXL"]
+    if s_clean in common_order:
+        return (1, common_order.index(s_clean))
+    # Diğer tüm durumlarda alfabetik sıralama
+    return (2, s_clean)
+
 def temizle_ozellik_metni(value):
     """
-    Ozellik kolonundaki değeri alır.
-    Noktalı virgül ile bölünür, 
-    'Beden:', 'Renk Seçiniz:', 'Kategori Seçiniz:' ile başlayan parçaları atar,
-    geri kalan parçaları ' - ' ile birleştirerek döndürür.
+    Verilen metni noktalı virgülle ayırır.
+    - "Beden:" ile başlayan parçaları ayrıştırıp, Beden değerini metin içerisinden çıkarır.
+      Bu değerler, sıralandıktan sonra "Asorti" adındaki kolonda saklanacaktır.
+    - "Renk Seçiniz:" ve "Kategori Seçiniz:" ile başlayan parçalar temizlenen metinden atılır.
+    - Geri kalan parçalar " // " ile birleştirilir.
+    
+    Fonksiyon, temizlenmiş metin ve asorti değerini içeren (cleaned_text, asorti_joined) şeklinde iki değer döndürür.
     """
     if not isinstance(value, str):
-        return value  # metin değilse dokunma
-    # Noktalı virgüle göre parçala
+        return value  # Metin değilse dokunma
+
+    # Noktalı virgülle parçala
     segments = [seg.strip() for seg in value.split(';')]
     
-    # Başlangıçları filtrelenecek listesi
-    remove_starts = ["Beden:", "Renk Seçiniz:", "Kategori Seçiniz:"]
+    # Temizleme sırasında atılacak anahtarlar (Beden dışındaki)
+    remove_starts = ["Renk Seçiniz:", "Kategori Seçiniz:"]
     
-    # Filtrelenmiş liste
     filtered_segments = []
-    for seg in segments:
-        # Eğer seg, remove_starts içindeki herhangi bir kalıpla başlıyorsa alma
-        if any(seg.startswith(r) for r in remove_starts):
-            continue
-        filtered_segments.append(seg)
+    asorti_sizes = []
     
-    # Kalanları " - " ile birleştir
-    return " // ".join(filtered_segments)
+    for seg in segments:
+        if seg.startswith("Beden:"):
+            # "Beden:" ifadesini kaldırıp kalan kısmı al
+            size_value = seg.replace("Beden:", "").strip()
+            if size_value:
+                asorti_sizes.append(size_value)
+        elif any(seg.startswith(r) for r in remove_starts):
+            # Belirlenen anahtarlarla başlayanları atla
+            continue
+        else:
+            filtered_segments.append(seg)
+    
+    # Asorti beden değerlerini mantıklı sıraya göre sırala
+    asorti_sizes_sorted = sorted(asorti_sizes, key=size_sort_key)
+    asorti_joined = " // ".join(asorti_sizes_sorted)
+    
+    # Kalan metni " // " ile birleştir
+    cleaned_text = " // ".join(filtered_segments)
+    
+    # Fonksiyon iki değeri tuple olarak döndürür:
+    return cleaned_text, asorti_joined
 
-# Kodun sonlarına doğru, excel'e yazmadan önce:
-df_calisma_alani["Ozellik"] = df_calisma_alani["Ozellik"].apply(temizle_ozellik_metni)
+# Örnek: DataFrame'in "Ozellik" kolonunu yeni işlev ile dönüştürüp hem temizlenmiş metni hem de asorti bedenleri ayırıyoruz.
+# df_calisma_alani DataFrame'inizin daha önceden tanımlı olduğunu varsayıyoruz.
+df_calisma_alani[["Ozellik", "Asorti"]] = df_calisma_alani["Ozellik"].apply(lambda x: pd.Series(temizle_ozellik_metni(x)))
 
-# Ardından kayıt işlemini yapıyoruz:
+# Ardından Excel'e kayıt işlemini yapıyoruz:
 df_calisma_alani.to_excel("Nirvana.xlsx", index=False)
+
 
 
 
@@ -751,12 +803,18 @@ gc.collect()
 # ------------------------------------------------------------
 # 2) "AramaTerimleri" kolonu için tarih ayıklama
 # ------------------------------------------------------------
-df_calisma_alani = pd.read_excel("Nirvana.xlsx")
 
 date_pattern = r'(\d{1,2}\.\d{1,2}\.\d{4})'
-df_calisma_alani['AramaTerimleri'] = df_calisma_alani['AramaTerimleri'].apply(
-    lambda x: re.search(date_pattern, str(x)).group(1) if re.search(date_pattern, str(x)) else None
-)
+
+def extract_date(x):
+    match = re.search(date_pattern, str(x))
+    if match:
+        # Elde edilen tarih metnini datetime objesine çeviriyoruz
+        return pd.to_datetime(match.group(1), format='%d.%m.%Y')
+    return pd.NaT  # Tarih bulunamazsa Not-a-Time döndür
+
+df_calisma_alani['AramaTerimleri'] = df_calisma_alani['AramaTerimleri'].apply(extract_date)
+
 
 # ------------------------------------------------------------
 # 3) "Kategori" kolonunda düzenleme
@@ -1080,7 +1138,7 @@ def duzenleme_islemleri(dosya_adi="Nirvana.xlsx", sayfa_adi="Sheet1"):
     # 5) Son olarak, sütunların sırasını yeniden düzenle
     # ------------------------------------------------
     final_order = [
-
+        "StokKodu",
         "Ürün Adı",
         "Üründe Hareket Var mı?",
         "Instagram Stok Adedi",
@@ -1107,7 +1165,8 @@ def duzenleme_islemleri(dosya_adi="Nirvana.xlsx", sayfa_adi="Sheet1"):
         "Son Transfer Tarihi",
         "Son İndirim Tarihi",
         "Marka",
-        "Etiketler"
+        "Etiketler",
+        "Asorti"
     ]
 
     # Mevcut tüm veriyi memory'e alıyoruz (list of dict)
@@ -1519,17 +1578,43 @@ def main():
     source_sheet.title = "Genel Rapor"
 
     # 2) İki kopya oluştur
-    rpt_sheet = wb.copy_worksheet(wb["Genel Rapor"])
+    rpt_sheet = wb.copy_worksheet(source_sheet)
     rpt_sheet.title = "RPT Raporu"
 
-    indirim_sheet = wb.copy_worksheet(wb["Genel Rapor"])
+    indirim_sheet = wb.copy_worksheet(source_sheet)
     indirim_sheet.title = "İndirim Raporu"
+
+    # RPT Raporu sayfasında en başa boş bir sütun ekleyip A1 hücresine "Sipariş Adedi" yazalım.
+    rpt_sheet.insert_cols(1)
+    rpt_sheet["A1"] = "Sipariş Adedi"
+
+    # "Sipariş Adedi" kolonunun genişliğini 103px'e ayarlayalım.
+    # Excel sütun genişlik birimi yaklaşık (px - 5) / 7 formülü ile hesaplanır.
+    # (103 - 5) / 7 ≈ 14
+    siparis_width = 14
+    rpt_sheet.column_dimensions["A"].width = siparis_width
+
+    # A sütunundaki tüm hücreleri, hem yatay hem dikey olarak ortalayalım.
+    for row in range(1, rpt_sheet.max_row + 1):
+        cell = rpt_sheet.cell(row=row, column=1)
+        cell.alignment = Alignment(horizontal="center", vertical="center")
+
+    # "Ürün Adı" kolonunun genişliğini 467px'e ayarlayalım.
+    # (467 - 5) / 7 ≈ 66
+    target_width = 66
+
+    # İlk satırdaki hücreler arasında "Ürün Adı" başlığını arıyoruz.
+    for cell in rpt_sheet[1]:
+        if cell.value == "Ürün Adı":
+            col_letter = cell.column_letter
+            rpt_sheet.column_dimensions[col_letter].width = target_width
+            break
 
     # 3) Kolon gizlemeleri
     # a) Genel Rapor
     hide_columns_by_header(
         wb["Genel Rapor"],
-        ["Resim", "Marka"]
+        ["Resim", "Marka", "Asorti", "StokKodu"]
     )
 
     # b) RPT Raporu
@@ -1545,13 +1630,15 @@ def main():
         "Resim",
         "Marka",
         "Liste Fiyatı",
+        "Asorti",
+        "StokKodu",
     ]
     hide_columns_by_header(wb["RPT Raporu"], rpt_hide_cols)
 
     # c) İndirim Raporu (ilk etapta 'Resim' ve 'Marka' kolonlarını gizle)
     hide_columns_by_header(
         wb["İndirim Raporu"],
-        ["Resim", "Marka", "Üründe Hareket Var mı?", "Stok Adedi Site ve Vega", "Kaç Güne Biter Site ve Vega", "Liste Fiyatı", "GMT Stok Adedi", "SİTA Stok Adedi", "Mevsim", "Net Satış Tarihi ve Adedi"]
+        ["Resim", "Marka", "Üründe Hareket Var mı?", "Stok Adedi Site ve Vega", "Kaç Güne Biter Site ve Vega", "Liste Fiyatı", "GMT Stok Adedi", "SİTA Stok Adedi", "Mevsim", "Net Satış Tarihi ve Adedi"," Asorti", "StokKodu"]
     )
 
     # 4) "İndirim Raporu" sayfasında filtreleme
@@ -1576,7 +1663,7 @@ def main():
     # Tekrar 'Resim' ve 'Marka' kolonlarını gizle (yeni sayfa)
     hide_columns_by_header(
         wb["İndirim Raporu"],
-        ["Resim", "Marka", "Üründe Hareket Var mı?", "Stok Adedi Site ve Vega", "Kaç Güne Biter Site ve Vega", "Liste Fiyatı", "GMT Stok Adedi", "SİTA Stok Adedi", "Mevsim", "Net Satış Tarihi ve Adedi"]
+        ["Resim", "Marka", "Üründe Hareket Var mı?", "Stok Adedi Site ve Vega", "Kaç Güne Biter Site ve Vega", "Liste Fiyatı", "GMT Stok Adedi", "SİTA Stok Adedi", "Mevsim", "Net Satış Tarihi ve Adedi", "Asorti", "StokKodu"]
     )
 
     # 6) Başlık satırlarını dondur ve zoom ayarını %90 yap
@@ -1765,3 +1852,306 @@ for worksheet in workbook.worksheets:
 
 # Sonuç dosyasını kaydedelim
 workbook.save("Nirvana.xlsx")
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+def add_hyperlinks_preserve_style():
+    workbook_path = "Nirvana.xlsx"
+    wb = openpyxl.load_workbook(workbook_path)
+    
+    # "RPT Raporu" sayfasının varlığını kontrol ediyoruz.
+    if "RPT Raporu" not in wb.sheetnames:
+        print("RPT Raporu sayfası bulunamadı.")
+        return
+    sheet = wb["RPT Raporu"]
+    
+    # İlk satırdaki hücrelerden "Resim" ve "Ürün Adı" kolonlarının indekslerini buluyoruz.
+    resim_col = None
+    urun_adi_col = None
+    for cell in sheet[1]:
+        if cell.value == "Resim":
+            resim_col = cell.column
+        elif cell.value == "Ürün Adı":
+            urun_adi_col = cell.column
+    
+    if resim_col is None or urun_adi_col is None:
+        print("Gerekli kolonlardan biri bulunamadı ('Resim' veya 'Ürün Adı').")
+        return
+    
+    # 2. satırdan itibaren her satırda, "Resim" kolonundaki URL'yi "Ürün Adı" hücresine hyperlink olarak ekleyelim.
+    for row in range(2, sheet.max_row + 1):
+        resim_value = sheet.cell(row=row, column=resim_col).value
+        if resim_value and isinstance(resim_value, str) and resim_value.strip():
+            urun_adi_cell = sheet.cell(row=row, column=urun_adi_col)
+            urun_adi_cell.hyperlink = resim_value.strip()
+            # Mevcut hücre stilini değiştirmeden hyperlink ekliyoruz.
+    
+    wb.save(workbook_path)
+    wb.close()
+
+if __name__ == "__main__":
+    add_hyperlinks_preserve_style()
+
+
+
+
+
+
+
+
+
+# 1. Google Sheets'teki "Stok Faaliyet Raporu" sayfasını Excel formatında indirme (fiziksel dosya oluşturulmuyor)
+google_sheet_id = "1UCfKTxoleZCCBGsdEiDy7Kk2fR1VUOeO3LnBkD7oNMA"
+sheet_gid = "886202732"  # "Stok Faaliyet Raporu" sayfasının gid değeri
+export_url = f"https://docs.google.com/spreadsheets/d/{google_sheet_id}/export?format=xlsx&gid={sheet_gid}"
+
+response = requests.get(export_url)
+if response.status_code == 200:
+    excel_bytes = response.content
+    excel_file_like = BytesIO(excel_bytes)
+else:
+    raise Exception("Google Sheets sayfası indirilemedi, lütfen bağlantıyı kontrol ediniz.")
+
+# 2. İndirilen Excel dosyasını DataFrame olarak oku
+df = pd.read_excel(excel_file_like)
+
+# 3. A kolonuna (ilk sütun) göre büyükten küçüğe sıralama
+col_A = df.columns[0]
+df_sorted = df.sort_values(by=col_A, ascending=False)
+
+# 4. B kolonundaki verileri düzenleme:
+#    Her değeri string'e çevirip, noktalardan bölüyoruz; ilk iki parçayı alıp "m1." ön ekini ekliyoruz.
+col_B = df.columns[1]
+
+def process_value(val):
+    s = str(val)
+    parts = s.split('.')
+    if len(parts) >= 2:
+        return "m1." + ".".join(parts[:2])
+    else:
+        return "m1." + s
+
+df_sorted[col_B] = df_sorted[col_B].apply(process_value)
+
+# 5. İşlenmiş verileri Nirvana.xlsx dosyasına, yeni oluşturulan "ProcessedData" adlı sayfaya yazma ve sayfayı gizleme
+excel_file = "Nirvana.xlsx"
+new_sheet_name = "ProcessedData"
+
+if not os.path.exists(excel_file):
+    # Dosya mevcut değilse yeni dosya oluşturup yazıyoruz
+    with pd.ExcelWriter(excel_file, engine='openpyxl') as writer:
+         df_sorted.to_excel(writer, sheet_name=new_sheet_name, index=False)
+         # Yeni eklenen sayfayı gizleme
+         worksheet = writer.book[new_sheet_name]
+         worksheet.sheet_state = 'hidden'
+else:
+    # Dosya mevcutsa, yeni sayfa ekleyip gizli hale getiriyoruz
+    with pd.ExcelWriter(excel_file, engine='openpyxl', mode='a') as writer:
+         df_sorted.to_excel(writer, sheet_name=new_sheet_name, index=False)
+         worksheet = writer.book[new_sheet_name]
+         worksheet.sheet_state = 'hidden'
+
+
+
+
+
+
+
+
+
+def olustur_siparis_sayfasi(dosya_yolu="Nirvana.xlsx"):
+    wb = load_workbook(dosya_yolu, data_only=False)
+
+    # "Sipariş Sayfası" varsa sil
+    if "Sipariş Sayfası" in wb.sheetnames:
+        del wb["Sipariş Sayfası"]
+
+    # Yeni sayfa oluştur
+    ws = wb.create_sheet("Sipariş Sayfası")
+
+    # Başlıklar (artık 15 kolon)
+    headers = [
+        "Tespit",               # A
+        "Sipariş Adedi Tespit", # B
+        "Stok Kodu Tespit",     # C
+        "Stok Kodu",            # D
+        "Tam Ürün Adı",         # E
+        "Firma Kodu",           # F
+        "Ürün Kodu",            # G
+        "Ürün Adı",             # H
+        "Renk",                 # I
+        "Resim",                # J
+        "Sipariş Adedi",        # K
+        "Fiyat",                # L
+        "Asorti",               # M
+        "Firmaya Not",
+
+        "Kategori",             # N
+        "Dönem"                 # O
+    ]
+
+    # 1. satır: Başlıkları ekle ve biçimlendir
+    for col_idx, h in enumerate(headers, start=1):
+        cell = ws.cell(row=1, column=col_idx, value=h)
+        cell.fill = PatternFill(start_color="000000", end_color="000000", fill_type="solid")
+        cell.font = Font(color="FFFFFF", bold=True)
+        cell.alignment = Alignment(horizontal="center", vertical="center")
+
+    ###################################################################
+    # 1) İlk 3 kolonu (A, B, C) 2'den 25.000'e kadar formüllerle doldur
+    ###################################################################
+
+    # A (Tespit) => =IF(B2="","",ROW(A1))
+    for row in range(2, 25001):
+        formula = f'=IF(B{row}="", "", ROW(A{row-1}))'
+        ws.cell(row=row, column=1).value = formula
+
+    # B (Sipariş Adedi Tespit) => ='RPT Raporu'!A2 vb.
+    for row in range(2, 25001):
+        formula = f'=IF(\'RPT Raporu\'!A{row}="", "", \'RPT Raporu\'!A{row})'
+        ws.cell(row=row, column=2).value = formula
+
+    # C (Stok Kodu Tespit) => ='RPT Raporu'!B2 vb.
+    for row in range(2, 25001):
+        formula = f"='RPT Raporu'!B{row}"
+        ws.cell(row=row, column=3).value = formula
+
+    ###################################################################
+    # Sonraki kolonlar (D - O) 2'den 500'e kadar formüllerle doldur
+    ###################################################################
+
+    # D (Stok Kodu)
+    for row in range(2, 501):
+        formula = f'=IFERROR(VLOOKUP(SMALL(A:A, ROW(A{row-1})), A:C, 3, 0), "")'
+        ws.cell(row=row, column=4).value = formula
+
+    # E (Tam Ürün Adı)
+    for row in range(2, 501):
+        formula = f"=IFERROR(VLOOKUP(D{row}, 'RPT Raporu'!B:C, 2, 0), \"\")"
+        ws.cell(row=row, column=5).value = formula
+
+    # F (Firma Kodu)
+    for row in range(2, 501):
+        formula = f'=SUBSTITUTE(IFERROR(MID(E{row}, FIND(".", E{row}), 50), ""), ".", "")'
+        ws.cell(row=row, column=6).value = formula
+
+    # G (Ürün Kodu)
+    for row in range(2, 501):
+        formula = (
+            f'=IFERROR('
+            f'SUBSTITUTE('
+            f'SUBSTITUTE('
+            f'SUBSTITUTE(MID(E{row}, FIND(" - ", E{row}), 50)," - ",""),'
+            f'F{row},""),'
+            f'".",""),'
+            f'""'
+            f')'
+        )
+        ws.cell(row=row, column=7).value = formula
+
+    # H (Ürün Adı)
+    for row in range(2, 501):
+        formula = (
+            f'=IFERROR('
+            f'LEFT('
+            f'SUBSTITUTE(E{row}, " ", "xxq", LEN(E{row})-LEN(SUBSTITUTE(E{row}, " ", ""))-2),'
+            f'FIND("xxq", SUBSTITUTE(E{row}, " ", "xxq", LEN(E{row})-LEN(SUBSTITUTE(E{row}, " ", ""))-2))-1'
+            f'),'
+            f'""'
+            f')'
+        )
+        ws.cell(row=row, column=8).value = formula
+
+    # I (Renk)
+    for row in range(2, 501):
+        formula = (
+            f'=IFERROR('
+            f'TRIM(LEFT(SUBSTITUTE(E{row}, H{row}, ""), '
+            f'FIND(" - ", SUBSTITUTE(E{row}, H{row}, ""))-1)),' 
+            f'""'
+            f')'
+        )
+        ws.cell(row=row, column=9).value = formula
+
+    # J (Resim)
+    for row in range(2, 501):
+        formula = f"=IFERROR(VLOOKUP(D{row}, 'RPT Raporu'!B:O, 14, 0), \"\")"
+        ws.cell(row=row, column=10).value = formula
+
+    # K (Sipariş Adedi)
+    for row in range(2, 501):
+        formula = f'=IFERROR(VLOOKUP(SMALL(A:A, ROW(A{row-1})), A:B, 2, 0), "")'
+        ws.cell(row=row, column=11).value = formula
+
+    # L (Fiyat)
+    for row in range(2, 501):
+        formula = f'=IF(D{row}="", "", VLOOKUP(D{row}, ProcessedData!B:C, 2, 0))'
+        ws.cell(row=row, column=12).value = formula
+
+
+    # L (Firmaya Not)
+    for row in range(2, 501):
+        ws.cell(row=row, column=14).value = "-"
+
+
+
+
+
+
+    # M (Asorti)
+    for row in range(2, 501):
+        formula = f"=IFERROR(VLOOKUP(D{row}, 'RPT Raporu'!B:AD, 29, 0), \"\")"
+        ws.cell(row=row, column=13).value = formula
+
+    # N (Kategori)
+    for row in range(2, 501):
+        formula = f"=IFERROR(VLOOKUP(D{row}, 'RPT Raporu'!B:V, 21, 0), \"\")"
+        ws.cell(row=row, column=15).value = formula
+
+    # O (Dönem)
+    for row in range(2, 501):
+        formula = f"=PROPER(IFERROR(VLOOKUP(D{row}, 'RPT Raporu'!B:Y, 24, 0), \"\"))"
+        ws.cell(row=row, column=16).value = formula
+
+    # A, B, C, D ve E sütunlarını gizle
+    ws.column_dimensions['A'].hidden = True
+    ws.column_dimensions['B'].hidden = True
+    ws.column_dimensions['C'].hidden = True
+    ws.column_dimensions['D'].hidden = True
+    ws.column_dimensions['E'].hidden = True
+
+    # İstenen sütun genişliklerini ayarla
+    ws.column_dimensions['F'].width = 15  # Firma Kodu
+    ws.column_dimensions['G'].width = 15  # Ürün Kodu
+    ws.column_dimensions['H'].width = 35  # Ürün Adı
+    ws.column_dimensions['I'].width = 15  # Renk
+    ws.column_dimensions['J'].width = 20  # Resim
+    ws.column_dimensions['K'].width = 17  # Sipariş Adedi
+    ws.column_dimensions['L'].width = 10  # Fiyat
+    ws.column_dimensions['M'].width = 30  # Asorti
+    ws.column_dimensions['N'].width = 15  # Kategori
+    ws.column_dimensions['O'].width = 30  # Dönem
+    ws.column_dimensions['P'].width = 15  # Dönem
+
+    # Sayfa ölçeğini %85'e ayarla
+    ws.sheet_view.zoomScale = 90
+
+    # Filtre aralığı
+    ws.auto_filter.ref = "A1:O25000"
+
+    # Kaydet
+    wb.save(dosya_yolu)
+
+# Fonksiyonu çağırmak için:
+olustur_siparis_sayfasi("Nirvana.xlsx")
