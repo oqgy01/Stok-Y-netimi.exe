@@ -194,7 +194,7 @@ def parse_decimal_string(value):
     "129,9900" -> 129.99
     """
     s = str(value).strip()      # string'e çevir, boşlukları temizle
-    s = s.replace(',', '.')     # Virgülleri noktaya çevir
+    s = s.replace(',', '.')     # Virgülleri noktaya çeviru
     try:
         return float(s)
     except ValueError:
@@ -225,7 +225,6 @@ def extract_color(urun_adi):
 # ------------------------------------------------------------
 # 1) Supabase üzerinden Ürün Listesi (tum_urun_listesi.xlsx) İndirme ve İşleme
 # ------------------------------------------------------------
-
 SUPABASE_URL = "https://zmvsatlvobhdaxxgtoap.supabase.co"
 SUPABASE_KEY = (
     "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9."
@@ -235,12 +234,13 @@ SUPABASE_KEY = (
 
 supabase: Client = create_client(SUPABASE_URL, SUPABASE_KEY)
 
-# "tum_urun_listesi.xlsx" indirilir (Belleğe)
+# "tum_urun_listesi.xlsx" indirilir (belleğe)
 response = supabase.storage.from_("tum_urun_listesi").download("tum_urun_listesi.xlsx")
 temp_df = pd.read_excel(BytesIO(response))
 
 # Kullanmak istediğimiz sütunlar
 selected_columns = [
+    "ModelKodu",    
     "StokKodu",
     "UrunAdi", 
     "StokAdedi", 
@@ -257,18 +257,61 @@ selected_columns = [
     "VaryasyonGittiGidiyorKodu",
     "TrendyolKodu",
     "VaryasyonTrendyolKodu",
-    "Ozellik"
+    "Ozellik",
+    "Varyasyon" 
 ]
 df = temp_df[selected_columns].copy()
 
-# Benzersiz kayıtlar (StokAdedi hariç)
-unique_cols = [c for c in selected_columns if c != "StokAdedi"]
+# --------------------------------------
+# Varyasyon kolonu için özel toplama işlemi
+# --------------------------------------
+# Normal beden sıralaması için yardımcı fonksiyon
+def size_key(v):
+    # Sıralama için önceden tanımlı beden sırası
+    predefined_order = ["XXS", "XS", "S", "M", "L", "XL", "XXL", "XXXL"]
+    v = v.strip()
+    if v in predefined_order:
+        return (0, predefined_order.index(v))
+    try:
+        # Eğer beden değeri rakamsa sayısal olarak sıralama
+        return (1, int(v))
+    except ValueError:
+        # Diğer durumlarda alfabetik sıralama
+        return (2, v)
+
+# Her ürün grubunda (UrunAdi) yer alan varyasyonlar için stok toplamını toplayıp
+# ve düzenli sıralanmış biçimde "Size : stok" formatında birleştirir.
+def aggregate_variations(grp):
+    grp = grp.copy()
+    # "Beden:" ifadesini kaldırıp temiz varyasyon elde edelim
+    grp['clean_var'] = grp['Varyasyon'].str.replace("Beden:", "", regex=False).str.strip()
+    # Temiz varyasyon bazında stok adedi toplamı
+    agg = grp.groupby('clean_var', as_index=False)['StokAdedi'].sum()
+    # Belirlenen sıralama kriterine göre sırala
+    agg = agg.sort_values(by="clean_var", key=lambda col: col.map(lambda x: size_key(x)))
+    # Her satır için "beden : stok" formatını oluştur ve " // " ile birleştir
+    var_str = " // ".join(f"{row['clean_var']} : {row['StokAdedi']}" for _, row in agg.iterrows())
+    return var_str
+
+# Her "UrunAdi" için toplanmış varyasyon bilgilerini hesaplayalım
+agg_variations = df.groupby("UrunAdi").apply(aggregate_variations).reset_index(name="Varyasyon_Agg")
+
+# orijinal df'deki Varyasyon kolonunu, hesaplanmış toplu varyasyon sonucu ile güncelleyelim
+# (eski Varyasyon kolonunu drop edip, toplama sonucunu merge ediyoruz)
+df = df.drop(columns=["Varyasyon"]).merge(agg_variations, on="UrunAdi", how="left")
+df.rename(columns={"Varyasyon_Agg": "Varyasyon"}, inplace=True)
+
+# --------------------------------------
+# Diğer işlemler: Benzersiz kayıtlar ve StokAdedi toplama
+# --------------------------------------
+# StokAdedi ve Varyasyon dışındaki sütunlara göre benzersiz kayıtlar
+unique_cols = [c for c in selected_columns if c not in ["StokAdedi", "Varyasyon"]]
 unique_df = df.drop(columns=["StokAdedi"]).drop_duplicates(subset=unique_cols)
 
 # UrunAdi bazında StokAdedi toplanır
 stokadedi_sums = df.groupby("UrunAdi")["StokAdedi"].sum().reset_index()
 
-# Birleştir => final_df
+# Birleştirerek final_df'yi elde edelim
 final_df = pd.merge(unique_df, stokadedi_sums, on="UrunAdi", how="left")
 
 # ------------------------------------------------------------
@@ -821,6 +864,8 @@ df_calisma_alani['AramaTerimleri'] = df_calisma_alani['AramaTerimleri'].apply(ex
 # ------------------------------------------------------------
 df_calisma_alani['Kategori'] = df_calisma_alani['Kategori'].fillna("")
 
+import re
+
 def extract_category(text):
     if not isinstance(text, str):
         return None
@@ -835,26 +880,30 @@ def extract_category(text):
     # 3) Her parçadaki kategori metnini ">" ya da ">>" den sonra al
     categories = []
     for part in parts:
-        # Hem ">>" hem ">" durumunu yakalamak için split kalıbı
         sub_parts = re.split(r'>>|>', part)
         if len(sub_parts) > 1:
-            # Son kısım kategoriyi tutar (ör: " Viskon Bluz" gibi)
             cat = sub_parts[-1].strip()
             categories.append(cat)
     
-    # 4) Tek kategori geldiyse eski mantık (ilk bulunan) geçerli
+    # 4) Tek kategori geldiyse o kategoriyi döndür
     if len(categories) == 1:
         return categories[0]
     
-    # 5) Birden çok kategori varsa "Büyük Beden" içereni at, kalanı döndür
+    # 5) Birden çok kategori varsa
     if len(categories) > 1:
-        for cat in categories:
-            if "Büyük Beden" not in cat:
-                return cat  # "Büyük Beden" içermeyeni bulunca döndürür
-        # Eğer hepsi "Büyük Beden" içeriyorsa ilk olanı döndürelim (ya da farklı bir mantık uygulanabilir)
-        return categories[0]
+        normal_cats = [cat for cat in categories if "Büyük Beden" not in cat]
+        bb_cats = [cat for cat in categories if "Büyük Beden" in cat]
+        # Eğer hem normal kategori hem de "Büyük Beden" içeren kategori varsa ikisini birleştir
+        if normal_cats and bb_cats:
+            return f"{normal_cats[0]} // {bb_cats[0]}"
+        # Sadece normal kategori varsa
+        if normal_cats:
+            return normal_cats[0]
+        # Sadece "Büyük Beden" içeren kategori varsa
+        if bb_cats:
+            return bb_cats[0]
     
-    # Hiç kategori bulunamadıysa None dön
+    # Hiç kategori bulunamadıysa None döndür
     return None
 
 df_calisma_alani['Kategori'] = df_calisma_alani['Kategori'].apply(extract_category)
@@ -1120,7 +1169,8 @@ def duzenleme_islemleri(dosya_adi="Nirvana.xlsx", sayfa_adi="Sheet1"):
         "StokAdedi": "Instagram Stok Adedi",
         "Adet": "Dünün Satış Adedi",
         "ListeFiyatı": "Liste Fiyatı",
-        "Ozellik": "Etiketler"
+        "Ozellik": "Etiketler",
+        "Varyasyon": "Bedenler"
     }
 
     for eski, yeni in rename_map.items():
@@ -1142,6 +1192,7 @@ def duzenleme_islemleri(dosya_adi="Nirvana.xlsx", sayfa_adi="Sheet1"):
         "Ürün Adı",
         "Üründe Hareket Var mı?",
         "Instagram Stok Adedi",
+        "Bedenler",
         "Stok Adedi Her Şey Dahil",
         "Stok Adedi Site ve Vega",
         "Günlük Ortalama Satış Adedi",  
@@ -1833,7 +1884,8 @@ aciklamalar = {
     "Net Satış Tarihi ve Adedi": "Ürünün tüm renk ve bedenlerinin aynı anda satışta olduğu son günün satış tarihi ve adedini belirtir.",
     "Son Transfer Tarihi": "Ürünün Instagram depoya en son ne zaman transfer edildiğini belirtir.",
     "Son İndirim Tarihi": "Ürüne en son ne zaman indirim yapıldığını belirtir.",
-    "Etiketler": "Ürüne tanımlanan etiketleri gösterir mesela paça tipi gibi"
+    "Etiketler": "Ürüne tanımlanan etiketleri gösterir mesela paça tipi gibi",
+    "Bedenler": "Ürünün bedenlerinin ve anlık olarak o bedenlerden kaçar adet kaldığını belirtir"
 }
 
 # Dosyayı aç
@@ -2086,7 +2138,7 @@ def olustur_siparis_sayfasi(dosya_yolu="Nirvana.xlsx"):
 
     # J (Resim)
     for row in range(2, 501):
-        formula = f"=IFERROR(VLOOKUP(D{row}, 'RPT Raporu'!B:O, 14, 0), \"\")"
+        formula = f"=IFERROR(VLOOKUP(D{row}, 'RPT Raporu'!B:P, 15, 0), \"\")"
         ws.cell(row=row, column=10).value = formula
 
     # K (Sipariş Adedi)
@@ -2111,17 +2163,17 @@ def olustur_siparis_sayfasi(dosya_yolu="Nirvana.xlsx"):
 
     # M (Asorti)
     for row in range(2, 501):
-        formula = f"=IFERROR(VLOOKUP(D{row}, 'RPT Raporu'!B:AD, 29, 0), \"\")"
+        formula = f"=IFERROR(VLOOKUP(D{row}, 'RPT Raporu'!B:AE, 30, 0), \"\")"
         ws.cell(row=row, column=13).value = formula
 
     # N (Kategori)
     for row in range(2, 501):
-        formula = f"=IFERROR(VLOOKUP(D{row}, 'RPT Raporu'!B:V, 21, 0), \"\")"
+        formula = f"=IFERROR(VLOOKUP(D{row}, 'RPT Raporu'!B:W, 22, 0), \"\")"
         ws.cell(row=row, column=15).value = formula
 
     # O (Dönem)
     for row in range(2, 501):
-        formula = f"=PROPER(IFERROR(VLOOKUP(D{row}, 'RPT Raporu'!B:Y, 24, 0), \"\"))"
+        formula = f"=PROPER(IFERROR(VLOOKUP(D{row}, 'RPT Raporu'!B:Z, 25, 0), \"\"))"
         ws.cell(row=row, column=16).value = formula
 
     # A, B, C, D ve E sütunlarını gizle
@@ -2155,3 +2207,37 @@ def olustur_siparis_sayfasi(dosya_yolu="Nirvana.xlsx"):
 
 # Fonksiyonu çağırmak için:
 olustur_siparis_sayfasi("Nirvana.xlsx")
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+wb = openpyxl.load_workbook("Nirvana.xlsx")
+
+# Genel Rapor sayfasında "Bedenler" kolonunu ayarla (43)
+ws = wb["Genel Rapor"]
+ws.column_dimensions[[cell.column_letter for cell in ws[1] if cell.value == "Bedenler"][0]].width = 43
+
+# RPT Raporu sayfasında "Bedenler" kolonunu (43) ve "Instagram Stok Adedi" kolonunu (15) ayarla
+ws = wb["RPT Raporu"]
+ws.column_dimensions[[cell.column_letter for cell in ws[1] if cell.value == "Bedenler"][0]].width = 43
+ws.column_dimensions[[cell.column_letter for cell in ws[1] if cell.value == "Instagram Stok Adedi"][0]].width = 15
+
+# İndirim Raporu sayfasında "Bedenler" kolonunu ayarla (43)
+ws = wb["İndirim Raporu"]
+ws.column_dimensions[[cell.column_letter for cell in ws[1] if cell.value == "Bedenler"][0]].width = 43
+
+wb.save("Nirvana.xlsx")
