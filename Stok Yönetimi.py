@@ -362,6 +362,8 @@ try:
     save_button = driver.find_element(By.CSS_SELECTOR, 'button.btn.btn-primary[name="save"]')
     save_button.click()
 
+    time.sleep(10)
+
 except Exception as e:
     print(colorama.Fore.RED + f"Giriş veya tarih ayarı sırasında hata: {e}" + colorama.Style.RESET_ALL)
     raise  # Hata sonrası kodun tamamen durması için hatayı tekrar fırlatıyoruz
