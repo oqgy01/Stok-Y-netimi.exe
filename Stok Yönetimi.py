@@ -2227,6 +2227,7 @@ olustur_siparis_sayfasi("Nirvana.xlsx")
 
 
 
+# Çalışma kitabını aç
 wb = openpyxl.load_workbook("Nirvana.xlsx")
 
 # Genel Rapor sayfasında "Bedenler" kolonunu ayarla (43)
@@ -2242,4 +2243,10 @@ ws.column_dimensions[[cell.column_letter for cell in ws[1] if cell.value == "Ins
 ws = wb["İndirim Raporu"]
 ws.column_dimensions[[cell.column_letter for cell in ws[1] if cell.value == "Bedenler"][0]].width = 43
 
-wb.save("Nirvana.xlsx")
+# Anlık tarihi "GG.AA.YYYY" formatında al
+tarih = datetime.now().strftime("%d.%m.%Y")
+# Dosya adının başına tarihi ekleyerek yeni ad oluştur
+yeni_dosya_adi = f"{tarih} Nirvana.xlsx"
+
+# Çalışma kitabını yeni dosya adıyla kaydet
+wb.save(yeni_dosya_adi)
