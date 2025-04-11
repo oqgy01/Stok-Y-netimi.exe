@@ -314,6 +314,34 @@ stokadedi_sums = df.groupby("UrunAdi")["StokAdedi"].sum().reset_index()
 # Birleştirerek final_df'yi elde edelim
 final_df = pd.merge(unique_df, stokadedi_sums, on="UrunAdi", how="left")
 
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
 # ------------------------------------------------------------
 # 2) Satış Raporu İndirme (Selenium) + Bellekte Parse Edip final_df'ye Ekleme
 # ------------------------------------------------------------
@@ -681,6 +709,200 @@ df_calisma_alani[["Ozellik", "Asorti"]] = df_calisma_alani["Ozellik"].apply(lamb
 
 # Ardından Excel'e kayıt işlemini yapıyoruz:
 df_calisma_alani.to_excel("Nirvana.xlsx", index=False)
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+# -----------------------------------------------------------
+# 1) Nirvana.xlsx'i oku ve firma kodunu ayıkla
+# -----------------------------------------------------------
+def parse_firma_code(text):
+    """
+    Daha esnek regex:  \.(\d+)\.?$
+    Örnek: 
+      "Dabıl Kumaş Pantolon Siyah - 6003.1247." -> 1247
+      "6003.1247" -> 1247
+    """
+    if not isinstance(text, str):
+        return None
+    text = text.strip()
+    match = re.search(r'\.(\d+)\.?$', text)
+    if match:
+        return match.group(1)
+    return None
+
+nirvana_df = pd.read_excel("Nirvana.xlsx")
+nirvana_df["FirmaKodu"] = nirvana_df["UrunAdi"].apply(parse_firma_code)
+
+# -----------------------------------------------------------
+# 2) API'ye bağlanarak vendor (sayfa sayfa 100 er kayıt)
+#    ve "name" alanından kod ayıklama
+# -----------------------------------------------------------
+def login():
+    conn = http.client.HTTPSConnection("siparis.haydigiy.com")
+
+    login_payload = {
+        "apiKey": "MypGcaEInEOTzuYQydgDHQ",
+        "secretKey": "jRqliBLDPke76YhL_WL5qg",
+        "emailOrPhone": "mustafa_kod@haydigiy.com",
+        "password": "123456"
+    }
+    login_headers = {
+        "Content-Type": "application/json",
+        "Accept": "application/json"
+    }
+
+    conn.request("POST", "/api/customer/login", body=json.dumps(login_payload), headers=login_headers)
+    res = conn.getresponse()
+    data = res.read().decode("utf-8")
+    if res.status != 200:
+        print("Giriş başarısız:", data)
+        return None
+
+    login_data = json.loads(data)
+    token = login_data.get("data", {}).get("token")
+    if not token:
+        print("Token alınamadı. Dönen veri:", login_data)
+        return None
+
+    return token
+
+def get_all_vendor_data(token):
+    """
+    Tek seferde 100 kayıt dönebiliyor.
+    Veriler bitene kadar pageIndex arttırarak tümünü toplayalım.
+    """
+    all_items = []
+    page_index = 1
+    while True:
+        conn = http.client.HTTPSConnection("siparis.haydigiy.com")
+        list_payload = {
+            "manufacturerName": "",
+            "published": None,
+            "pageIndex": page_index,
+            "pageSize": 100
+        }
+        list_headers = {
+            "Authorization": f"Bearer {token}",
+            "Content-Type": "application/json",
+            "Accept": "application/json"
+        }
+
+        conn.request("POST", "/adminapi/vendor/list", body=json.dumps(list_payload), headers=list_headers)
+        res = conn.getresponse()
+        data = res.read().decode("utf-8")
+        if res.status != 200:
+            print(f"Sayfa {page_index} isteği başarısız:", data)
+            break
+
+        response_data = json.loads(data)
+        items = response_data.get("data", [])
+        if not items:
+            # artık veri gelmiyorsa veya boşsa döngüden çık
+            break
+
+        all_items.extend(items)
+        # 100'den az geldiyse son sayfayız demektir
+        if len(items) < 100:
+            break
+
+        page_index += 1
+
+    return all_items
+
+def parse_vendor_code(text):
+    """
+    "name" alanı örnek: ".1806." -> 1806
+    Regex:  \.(\d+)\.?$
+    """
+    if not isinstance(text, str):
+        return None
+    text = text.strip()
+    match = re.search(r'\.(\d+)\.?$', text)
+    if match:
+        return match.group(1)
+    return None
+
+# Login ol ve tüm vendor verisini topla
+token = login()
+vendor_data_list = []
+vendor_dict = {}
+
+if token:
+    vendor_data_list = get_all_vendor_data(token)
+    # vendor_data_list içindeki her item'da "name" alanı olduğunu varsayıyoruz
+    for item in vendor_data_list:
+        name_text = item.get("name", "")
+        code = parse_vendor_code(name_text)
+        if code:
+            vendor_dict.setdefault(code, []).append(name_text)
+
+# -----------------------------------------------------------
+# 3) Nirvana DataFrame'inde vendor kodlarını eşleştir
+# -----------------------------------------------------------
+def get_vendor_note_for_code(code):
+    """
+    Kod dictionary'de varsa, o koda bağlı metin(leri) "//" ile birleştirerek döndür.
+    Yoksa "" döndür.
+    """
+    if not code:
+        return ""
+    return " // ".join(vendor_dict[code]) if code in vendor_dict else ""
+
+nirvana_df["VendorNotu"] = nirvana_df["FirmaKodu"].apply(get_vendor_note_for_code)
+
+# -----------------------------------------------------------
+# 4) Ara dosya oluşturmadan doğrudan openpyxl ile Excel çıktısı
+#    (DataFrame verisini tek tek hücrelere yazar + comment ekler)
+# -----------------------------------------------------------
+
+# Yeni bir workbook oluştur
+wb = Workbook()
+ws = wb.active
+
+# 4A) Sütun başlıklarını yaz
+columns = list(nirvana_df.columns)  # ['UrunAdi', 'StokAdedi', ..., 'FirmaKodu', 'VendorNotu', ...]
+for col_index, col_name in enumerate(columns, start=1):
+    ws.cell(row=1, column=col_index, value=col_name)
+
+# 4B) DataFrame içeriğini hücrelere doldur
+for row_index, row_data in nirvana_df.iterrows():
+    excel_row = row_index + 2  # 1. satır başlık olduğu için
+    for col_index, col_name in enumerate(columns, start=1):
+        cell_value = row_data[col_name]
+        cell = ws.cell(row=excel_row, column=col_index, value=cell_value)
+
+# 4C) openpyxl ile comment ekle (örn. "UrunAdi" sütunu)
+col_urunadi_idx = columns.index("UrunAdi") + 1  # 1-based
+for row_index, row_data in nirvana_df.iterrows():
+    vendor_note = row_data["VendorNotu"]
+    if vendor_note.strip():
+        # "UrunAdi" hücresine comment ekle
+        excel_row = row_index + 2
+        urun_adi_cell = ws.cell(row=excel_row, column=col_urunadi_idx)
+        urun_adi_cell.comment = Comment(text=vendor_note, author="VendorInfo")
+
+# 4D) Son olarak kaydet
+wb.save("Nirvana.xlsx")
+
+
+
+
+
+
+
+
 
 
 
@@ -2227,7 +2449,211 @@ olustur_siparis_sayfasi("Nirvana.xlsx")
 
 
 
-# Çalışma kitabını aç
+
+
+
+
+
+
+
+
+
+# -----------------------------------------------------------------------
+# 1) Token alma ve multi-sayfa vendor verisi çekme
+# -----------------------------------------------------------------------
+def login():
+    conn = http.client.HTTPSConnection("siparis.haydigiy.com")
+
+    login_payload = {
+        "apiKey": "MypGcaEInEOTzuYQydgDHQ",
+        "secretKey": "jRqliBLDPke76YhL_WL5qg",
+        "emailOrPhone": "mustafa_kod@haydigiy.com",
+        "password": "123456"
+    }
+    headers = {
+        "Content-Type": "application/json",
+        "Accept": "application/json"
+    }
+
+    conn.request("POST", "/api/customer/login", body=json.dumps(login_payload), headers=headers)
+    res = conn.getresponse()
+    data = res.read().decode("utf-8")
+    if res.status != 200:
+        print("Giriş başarısız:", data)
+        return None
+
+    login_data = json.loads(data)
+    token = login_data.get("data", {}).get("token")
+    if not token:
+        print("Token alınamadı. Dönen veri:", login_data)
+        return None
+    return token
+
+def get_all_vendor_data(token):
+    """
+    Tek seferde 100 kayıt geliyorsa, veri bitene kadar pageIndex arttırarak
+    tüm vendor verisini toplar.
+    """
+    all_items = []
+    page_index = 1
+    while True:
+        conn = http.client.HTTPSConnection("siparis.haydigiy.com")
+
+        list_payload = {
+            "manufacturerName": "",
+            "published": None,
+            "pageIndex": page_index,
+            "pageSize": 100
+        }
+        list_headers = {
+            "Authorization": f"Bearer {token}",
+            "Content-Type": "application/json",
+            "Accept": "application/json"
+        }
+
+        conn.request("POST", "/adminapi/vendor/list", body=json.dumps(list_payload), headers=list_headers)
+        res = conn.getresponse()
+        data = res.read().decode("utf-8")
+        if res.status != 200:
+            print(f"Sayfa {page_index} isteği başarısız:", data)
+            break
+
+        response_data = json.loads(data)
+        items = response_data.get("data", [])
+        if not items:
+            # Boş geldi, bitir
+            break
+
+        all_items.extend(items)
+
+        # 100'den az geldiyse son sayfa kabul edilir
+        if len(items) < 100:
+            break
+
+        page_index += 1
+
+
+    return all_items
+
+# -----------------------------------------------------------------------
+# 2) Regex yardımı: Ürün Adı ve vendor "name" alanlarından firma kodu çıkarma
+# -----------------------------------------------------------------------
+def parse_firma_code(text):
+    """
+    Esnek regex:  \.(\d+)\.?$
+    Örnek: 
+      "Dabıl Kumaş - 6003.1247." -> 1247
+      "6003.1247" -> 1247
+    """
+    if not isinstance(text, str):
+        return None
+    text = text.strip()
+    match = re.search(r'\.(\d+)\.?$', text)
+    if match:
+        return match.group(1)
+    return None
+
+def parse_vendor_code(text):
+    """
+    Vendor "name" örnek: ".1806." -> 1806
+    """
+    return parse_firma_code(text)
+
+# -----------------------------------------------------------------------
+# 3) Kod eşleştirme: DataFrame tarafında (FirmaKodu -> VendorNotu)
+# -----------------------------------------------------------------------
+def get_vendor_note_for_code(code, vendor_dict):
+    if not code:
+        return ""
+    return " // ".join(vendor_dict[code]) if code in vendor_dict else ""
+
+# -----------------------------------------------------------------------
+# Ana işlem
+# -----------------------------------------------------------------------
+def main():
+    # 1) Login olup tüm vendor verisini çek
+    token = login()
+    if not token:
+        return
+
+    vendor_data_list = get_all_vendor_data(token)
+
+    # 2) Vendor verilerini code->list haritası (vendor_dict) yap
+    vendor_dict = {}
+    for item in vendor_data_list:
+        name_text = item.get("name", "")  # "name" alanında firma bilgisi
+        code = parse_vendor_code(name_text)
+        if code:
+            vendor_dict.setdefault(code, []).append(name_text)
+
+    # 3) Nirvana.xlsx içinde 3 çalışma sayfasını oku:
+    sheet_names = ["Genel Rapor", "RPT Raporu", "İndirim Raporu"]
+    df_sheets = pd.read_excel("Nirvana.xlsx", sheet_name=sheet_names)
+
+    # df_sheets => { "Genel Rapor": DataFrame, "RPT Raporu": DataFrame, ... }
+
+    # 4) Her sayfada Ürün Adı kolonundan kodu bul -> VendorNotu ekle
+    for s_name in sheet_names:
+        df = df_sheets[s_name]
+        if "Ürün Adı" not in df.columns:
+            print(f"Uyarı: {s_name} sayfasında 'Ürün Adı' kolonu bulunamadı!")
+            continue
+
+        df["FirmaKodu"] = df["Ürün Adı"].apply(parse_firma_code)
+        df["VendorNotu"] = df["FirmaKodu"].apply(lambda c: get_vendor_note_for_code(c, vendor_dict))
+        df_sheets[s_name] = df  # Geri koymaya gerek yok ama okuma kolaylığı için
+
+    # 5) openpyxl ile Nirvana.xlsx'i aç, her sayfada "Ürün Adı" hücresine comment ekle
+    wb = load_workbook("Nirvana.xlsx")
+
+    for s_name in sheet_names:
+        if s_name not in wb.sheetnames:
+            print(f"Uyarı: {s_name} adlı bir sayfa Excel'de yok.")
+            continue
+
+        ws = wb[s_name]
+        df = df_sheets[s_name]
+
+        # Sütun başlık satırının 1. satırda olduğunu varsayıyoruz
+        # "Ürün Adı" kolonunun Excel'deki sütun index'ini bulmak için:
+        header_row = 1
+        col_urun_adi = None
+        max_col = ws.max_column
+        for col_idx in range(1, max_col + 1):
+            cell_value = ws.cell(row=header_row, column=col_idx).value
+            if cell_value == "Ürün Adı":
+                col_urun_adi = col_idx
+                break
+
+        if not col_urun_adi:
+            print(f"Uyarı: {s_name} sayfasında 'Ürün Adı' başlığı bulunamadı.")
+            continue
+
+        # DataFrame'de 0-bazlı index, Excel'de 2. satırdan veri başlıyor
+        for df_index, row_data in df.iterrows():
+            vendor_note = row_data.get("VendorNotu", "")
+            if not vendor_note.strip():
+                continue  # boşsa comment eklemeyelim
+
+            excel_row = df_index + 2  # 1.satır başlık, 2.satır verinin başlangıcı
+            cell = ws.cell(row=excel_row, column=col_urun_adi)
+            # Comment'i ekle (varsa üzerine yazar)
+            cell.comment = Comment(text=vendor_note, author="VendorInfo")
+
+    # 6) Kaydet
+    wb.save("Nirvana.xlsx")
+
+
+if __name__ == "__main__":
+    main()
+
+
+
+
+
+
+
+
 wb = openpyxl.load_workbook("Nirvana.xlsx")
 
 # Genel Rapor sayfasında "Bedenler" kolonunu ayarla (43)
@@ -2243,10 +2669,5 @@ ws.column_dimensions[[cell.column_letter for cell in ws[1] if cell.value == "Ins
 ws = wb["İndirim Raporu"]
 ws.column_dimensions[[cell.column_letter for cell in ws[1] if cell.value == "Bedenler"][0]].width = 43
 
-# Anlık tarihi "GG.AA.YYYY" formatında al
-tarih = datetime.now().strftime("%d.%m.%Y")
-# Dosya adının başına tarihi ekleyerek yeni ad oluştur
-yeni_dosya_adi = f"{tarih} Nirvana.xlsx"
+wb.save("Nirvana.xlsx")
 
-# Çalışma kitabını yeni dosya adıyla kaydet
-wb.save(yeni_dosya_adi)
