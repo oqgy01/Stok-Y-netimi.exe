@@ -1421,10 +1421,10 @@ def duzenleme_islemleri(dosya_adi="Nirvana.xlsx", sayfa_adi="Sheet1"):
         "Stok Adedi Site ve Vega",
         "Günlük Ortalama Satış Adedi",  
         "Dünün Satış Adedi",  
+        "Kaç Güne Biter Her Şey Dahil",
         "Net Satış Tarihi ve Adedi",         
         "Ortalama Görüntülenme Adedi", 
         "Görüntülenmenin Satışa Dönüş Oranı",
-        "Kaç Güne Biter Her Şey Dahil",
         "Kaç Güne Biter Site ve Vega",
         "Resim",
         "Alış Fiyatı",
@@ -2670,4 +2670,3 @@ ws = wb["İndirim Raporu"]
 ws.column_dimensions[[cell.column_letter for cell in ws[1] if cell.value == "Bedenler"][0]].width = 43
 
 wb.save("Nirvana.xlsx")
-
