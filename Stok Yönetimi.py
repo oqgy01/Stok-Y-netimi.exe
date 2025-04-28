@@ -1094,6 +1094,10 @@ def extract_category(text):
     if not isinstance(text, str):
         return None
     
+    # Başta "Butik" kontrolü
+    if "Butik" in text:
+        return "Butik"
+    
     # 1) Önce TESETTÜR kontrolü
     if "TESETTÜR" in text:
         return "TESETTÜR"
