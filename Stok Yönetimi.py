@@ -481,19 +481,22 @@ if "AlisFiyati" in cols and "Son Satın Alma Fiyatı" in cols:
 
 # ------------------------------------------------------------
 # 4) GMT ve SİTA Verilerini Çekme (Supabase tablosu "urunyonetimi")
+#    – tedarikci kolonu eklendi
+#    – firmakodu çıkarıldı
+#    – acilanadet == 0 filtresi eklendi
 # ------------------------------------------------------------
 
 all_data = []
-start = 0
-page_size = 1000
+start      = 0
+page_size  = 1000
 
 while True:
     end = start + page_size - 1
     response_data = (
         supabase.table("urunyonetimi")
-        .select("urunkodu, renk, acilmamisadet, gmtsitalabel")
+        .select("urunkodu, renk, tedarikci, acilanadet, acilmamisadet, gmtsitalabel")
         .in_("gmtsitalabel", ["GMT", "SİTA", "Yarım GMT"])
-        .gt("acilmamisadet", 0)
+        .eq("acilanadet", 0)                          # YENİ KOŞUL
         .range(start, end)
         .execute()
     )
@@ -505,126 +508,134 @@ while True:
 
 df_gmtsita = pd.DataFrame(all_data)
 
-# Renk sütununu düzenleyelim (İlk harf büyük)
+# firmakodu → tedarikci sütunundaki son noktadan sonraki sayı
+df_gmtsita["firmakodu"] = (
+    df_gmtsita["tedarikci"]
+      .astype(str)
+      .str.extract(r'\.(\d+)\b', expand=False)
+)
+
+# Renk ilk harf büyük
 df_gmtsita["renk"] = df_gmtsita["renk"].apply(lambda x: x.capitalize() if isinstance(x, str) else x)
 
 # GMT + Yarım GMT
 df_gmt = df_gmtsita[df_gmtsita["gmtsitalabel"].isin(["GMT", "Yarım GMT"])]
-df_gmt_grouped = df_gmt.groupby(["urunkodu", "renk"], as_index=False)["acilmamisadet"].sum()
+df_gmt_grouped = (
+    df_gmt.groupby(["urunkodu", "renk", "firmakodu"], as_index=False)["acilmamisadet"].sum()
+)
 
-df_gmt_final = pd.DataFrame()
-df_gmt_final["GMT Ürün Kodu"] = pd.to_numeric(df_gmt_grouped["urunkodu"], errors="coerce").astype("Int64")
-df_gmt_final["GMT Ürün Adı"] = df_gmt_grouped["urunkodu"].astype(str) + " - " + df_gmt_grouped["renk"]
-df_gmt_final["GMT Stok Adedi"] = df_gmt_grouped["acilmamisadet"]
+df_gmt_final = pd.DataFrame({
+    "GMT Ürün Kodu": pd.to_numeric(df_gmt_grouped["urunkodu"], errors="coerce").astype("Int64"),
+    "Firma Kodu"   : df_gmt_grouped["firmakodu"],
+    "GMT Ürün Adı" : df_gmt_grouped["urunkodu"].astype(str) + " - " +
+                     df_gmt_grouped["renk"].astype(str)     + " - " +
+                     df_gmt_grouped["firmakodu"].astype(str),
+    "GMT Stok Adedi": df_gmt_grouped["acilmamisadet"],
+})
 
 # SİTA
 df_sita = df_gmtsita[df_gmtsita["gmtsitalabel"] == "SİTA"]
-df_sita_grouped = df_sita.groupby(["urunkodu", "renk"], as_index=False)["acilmamisadet"].sum()
-
-df_sita_final = pd.DataFrame()
-df_sita_final["SİTA Ürün Kodu"] = pd.to_numeric(df_sita_grouped["urunkodu"], errors="coerce").astype("Int64")
-df_sita_final["SİTA Ürün Adı"] = df_sita_grouped["urunkodu"].astype(str) + " - " + df_sita_grouped["renk"]
-df_sita_final["SİTA Stok Adedi"] = df_sita_grouped["acilmamisadet"]
-
-# ------------------------------------------------------------
-# 5) DONEM Verisinin Eşleştirilmesi ve N11Kodu'na Eklenmesi (sadece boş hücreler için)
-# ------------------------------------------------------------
-
-# DB'deki "urunyonetimi" tablosundan "id, urunkodu, renk, donem" kolonlarını çekelim
-response_data_donem = supabase.table("urunyonetimi").select("id, urunkodu, renk, donem").execute()
-df_urunyonetimi_donem = pd.DataFrame(response_data_donem.data)
-
-# "urunkodu" ve "renk" kolonlarını birleştirerek eşleştirme için kolon oluşturuyoruz
-df_urunyonetimi_donem["urunkodu_renk"] = df_urunyonetimi_donem["urunkodu"].astype(str) + " - " + df_urunyonetimi_donem["renk"].astype(str)
-
-# Aynı urunkodu_renk'e sahip birden fazla satır varsa, ID değeri en büyük olanı al (azalan ID'ye göre sıralayarak)
-df_urunyonetimi_donem.sort_values("id", ascending=False, inplace=True)
-df_urunyonetimi_donem.drop_duplicates(subset=["urunkodu_renk"], keep="first", inplace=True)
-
-# Donem verisini büyük harfe çeviriyoruz
-df_urunyonetimi_donem["donem"] = df_urunyonetimi_donem["donem"].str.upper()
-
-# final_merged_df ile donem bilgisini eşleştirmek için merge yapıyoruz
-final_merged_df = final_merged_df.merge(
-    df_urunyonetimi_donem[["urunkodu_renk", "donem"]],
-    how="left",
-    left_on="UrunAdi ve Renk",
-    right_on="urunkodu_renk"
+df_sita_grouped = (
+    df_sita.groupby(["urunkodu", "renk", "firmakodu"], as_index=False)["acilmamisadet"].sum()
 )
 
-# N11Kodu sütunundaki boş hücrelere donem bilgisini ekliyoruz
-final_merged_df["N11Kodu"] = final_merged_df.apply(
-    lambda row: row["donem"] if (pd.isna(row["N11Kodu"]) or row["N11Kodu"] == "") and pd.notna(row["donem"]) else row["N11Kodu"],
-    axis=1
-)
-
-# Geçici oluşturulan kolonları siliyoruz
-final_merged_df.drop(["urunkodu_renk", "donem"], axis=1, inplace=True)
-
+df_sita_final = pd.DataFrame({
+    "SİTA Ürün Kodu": pd.to_numeric(df_sita_grouped["urunkodu"], errors="coerce").astype("Int64"),
+    "Firma Kodu"    : df_sita_grouped["firmakodu"],
+    "SİTA Ürün Adı" : df_sita_grouped["urunkodu"].astype(str) + " - " +
+                      df_sita_grouped["renk"].astype(str)     + " - " +
+                      df_sita_grouped["firmakodu"].astype(str),
+    "SİTA Stok Adedi": df_sita_grouped["acilmamisadet"],
+})
 
 # ------------------------------------------------------------
 # 5) GMT ve SİTA Verilerini Ana Tabloya Çektirme (Etopla Mantığı)
+#    – eşleştirme anahtarına firmakodu eklendi
 # ------------------------------------------------------------
 
 df_calisma_alani = final_merged_df.copy()
 
-used_gmt_indices_step1 = []
+# final_merged_df tarafında firmakodu sütunu oluştur
+df_calisma_alani["FirmaKodu"] = (
+    df_calisma_alani["UrunAdi"]
+      .astype(str)
+      .str.extract(r'\.(\d+)\b', expand=False)
+)
+
+# birleşik anahtar
+df_calisma_alani["UrunAdi_Renk_Firma"] = (
+    df_calisma_alani["UrunAdi ve Renk"] + " - " + df_calisma_alani["FirmaKodu"]
+)
+
+used_gmt_indices_step1  = []
 used_sita_indices_step1 = []
 
-# 5.1) "UrunAdi ve Renk" -> "GMT Ürün Adı" / "SİTA Ürün Adı"
+# 5.1) Ürün adı + renk + firma kodu ile direkt eşleştirme
 for idx, row in df_calisma_alani.iterrows():
-    urun_adi_ve_renk = row.get("UrunAdi ve Renk", "")
+    key = row["UrunAdi_Renk_Firma"]
 
-    # GMT eşleştirme
-    matching_gmt = df_gmt_final[df_gmt_final["GMT Ürün Adı"] == urun_adi_ve_renk]
-    if not matching_gmt.empty:
-        matched_index = matching_gmt.index[0]
-        df_calisma_alani.at[idx, "GMT Stok Adedi"] = matching_gmt.iloc[0]["GMT Stok Adedi"]
-        used_gmt_indices_step1.append(matched_index)
+    # GMT
+    match_gmt = df_gmt_final[df_gmt_final["GMT Ürün Adı"] == key]
+    if not match_gmt.empty:
+        m_idx = match_gmt.index[0]
+        df_calisma_alani.at[idx, "GMT Stok Adedi"] = match_gmt.iloc[0]["GMT Stok Adedi"]
+        used_gmt_indices_step1.append(m_idx)
     else:
         df_calisma_alani.at[idx, "GMT Stok Adedi"] = None
 
-    # SİTA eşleştirme
-    matching_sita = df_sita_final[df_sita_final["SİTA Ürün Adı"] == urun_adi_ve_renk]
-    if not matching_sita.empty:
-        matched_index = matching_sita.index[0]
-        df_calisma_alani.at[idx, "SİTA Stok Adedi"] = matching_sita.iloc[0]["SİTA Stok Adedi"]
-        used_sita_indices_step1.append(matched_index)
+    # SİTA
+    match_sita = df_sita_final[df_sita_final["SİTA Ürün Adı"] == key]
+    if not match_sita.empty:
+        m_idx = match_sita.index[0]
+        df_calisma_alani.at[idx, "SİTA Stok Adedi"] = match_sita.iloc[0]["SİTA Stok Adedi"]
+        used_sita_indices_step1.append(m_idx)
     else:
         df_calisma_alani.at[idx, "SİTA Stok Adedi"] = None
 
-df_gmt_final = df_gmt_final.drop(used_gmt_indices_step1).reset_index(drop=True)
+df_gmt_final  = df_gmt_final.drop(used_gmt_indices_step1).reset_index(drop=True)
 df_sita_final = df_sita_final.drop(used_sita_indices_step1).reset_index(drop=True)
 
-used_gmt_indices_step2 = []
+used_gmt_indices_step2  = []
 used_sita_indices_step2 = []
 
-# 5.2) "UrunAdi Duzenleme" -> "GMT Ürün Kodu" / "SİTA Ürün Kodu"
+# 5.2) Kod + firma kodu ile eşleştirme
 for idx, row in df_calisma_alani.iterrows():
-    urun_kodu = row.get("UrunAdi Duzenleme", "")
+    urunkodu   = row["UrunAdi Duzenleme"]
+    firma_kodu = row["FirmaKodu"]
 
-    # GMT kontrol
-    current_gmt_stok = row.get("GMT Stok Adedi", 0)
-    if pd.isna(current_gmt_stok) or current_gmt_stok == 0:
-        matching_gmt_code = df_gmt_final[df_gmt_final["GMT Ürün Kodu"].astype(str) == urun_kodu]
-        if not matching_gmt_code.empty:
-            matched_index = matching_gmt_code.index[0]
-            gmt_stok = matching_gmt_code.iloc[0]["GMT Stok Adedi"]
-            df_calisma_alani.at[idx, "GMT Stok Adedi"] = "GMT'de Var" if gmt_stok > 0 else gmt_stok
-            used_gmt_indices_step2.append(matched_index)
+    # GMT
+    if pd.isna(row["GMT Stok Adedi"]) or row["GMT Stok Adedi"] == 0:
+        match_gmt = df_gmt_final[
+            (df_gmt_final["GMT Ürün Kodu"].astype(str) == urunkodu) &
+            (df_gmt_final["Firma Kodu"].astype(str)   == str(firma_kodu))
+        ]
+        if not match_gmt.empty:
+            m_idx     = match_gmt.index[0]
+            stok_val  = match_gmt.iloc[0]["GMT Stok Adedi"]
+            df_calisma_alani.at[idx, "GMT Stok Adedi"] = "GMT'de Var" if stok_val > 0 else stok_val
+            used_gmt_indices_step2.append(m_idx)
 
-    # SİTA kontrol
-    current_sita_stok = row.get("SİTA Stok Adedi", 0)
-    if pd.isna(current_sita_stok) or current_sita_stok == 0:
-        matching_sita_code = df_sita_final[df_sita_final["SİTA Ürün Kodu"].astype(str) == urun_kodu]
-        if not matching_sita_code.empty:
-            matched_index = matching_sita_code.index[0]
-            sita_stok = matching_sita_code.iloc[0]["SİTA Stok Adedi"]
-            df_calisma_alani.at[idx, "SİTA Stok Adedi"] = "SİTA'da Var" if sita_stok > 0 else sita_stok
-            used_sita_indices_step2.append(matched_index)
+    # SİTA
+    if pd.isna(row["SİTA Stok Adedi"]) or row["SİTA Stok Adedi"] == 0:
+        match_sita = df_sita_final[
+            (df_sita_final["SİTA Ürün Kodu"].astype(str) == urunkodu) &
+            (df_sita_final["Firma Kodu"].astype(str)     == str(firma_kodu))
+        ]
+        if not match_sita.empty:
+            m_idx     = match_sita.index[0]
+            stok_val  = match_sita.iloc[0]["SİTA Stok Adedi"]
+            df_calisma_alani.at[idx, "SİTA Stok Adedi"] = "SİTA'da Var" if stok_val > 0 else stok_val
+            used_sita_indices_step2.append(m_idx)
 
-df_gmt_final = df_gmt_final.drop(used_gmt_indices_step2).reset_index(drop=True)
+df_gmt_final  = df_gmt_final.drop(used_gmt_indices_step2).reset_index(drop=True)
 df_sita_final = df_sita_final.drop(used_sita_indices_step2).reset_index(drop=True)
+
+
+
+
+
+
+
 
 # ------------------------------------------------------------
 # 6) Tek Çıktı: "Nirvana.xlsx"
@@ -1083,6 +1094,11 @@ def extract_date(x):
 df_calisma_alani['AramaTerimleri'] = df_calisma_alani['AramaTerimleri'].apply(extract_date)
 
 
+
+
+# İlk olarak mevcut "Kategori" kolonunu "Özel Kategoriler" adlı yeni bir kolona kopyala
+df_calisma_alani['Özel Kategoriler'] = df_calisma_alani['Kategori']
+
 # ------------------------------------------------------------
 # 3) "Kategori" kolonunda düzenleme
 # ------------------------------------------------------------
@@ -1135,6 +1151,7 @@ def extract_category(text):
     return None
 
 df_calisma_alani['Kategori'] = df_calisma_alani['Kategori'].apply(extract_category)
+
 
 # ------------------------------------------------------------
 # 4) Yeni kolonlar: "Stok Adedi Her Şey Dahil" ve "Stok Adedi Site ve Vega"
@@ -1445,7 +1462,8 @@ def duzenleme_islemleri(dosya_adi="Nirvana.xlsx", sayfa_adi="Sheet1"):
         "Son İndirim Tarihi",
         "Marka",
         "Etiketler",
-        "Asorti"
+        "Asorti",
+        "Özel Kategoriler"
     ]
 
     # Mevcut tüm veriyi memory'e alıyoruz (list of dict)
