@@ -308,8 +308,13 @@ df.rename(columns={"Varyasyon_Agg": "Varyasyon"}, inplace=True)
 unique_cols = [c for c in selected_columns if c not in ["StokAdedi", "Varyasyon"]]
 unique_df = df.drop(columns=["StokAdedi"]).drop_duplicates(subset=unique_cols)
 
-# UrunAdi bazında StokAdedi toplanır
-stokadedi_sums = df.groupby("UrunAdi")["StokAdedi"].sum().reset_index()
+# UrunAdi bazında StokAdedi toplanır, negatif sonuçlar 0'a çekilir
+stokadedi_sums = (
+    df.groupby("UrunAdi")["StokAdedi"]
+      .sum()
+      .clip(lower=0)  # negatifleri 0 yap
+      .reset_index()
+)
 
 # Birleştirerek final_df'yi elde edelim
 final_df = pd.merge(unique_df, stokadedi_sums, on="UrunAdi", how="left")
