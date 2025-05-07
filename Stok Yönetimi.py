@@ -1407,7 +1407,7 @@ def duzenleme_islemleri(dosya_adi="Nirvana.xlsx", sayfa_adi="Sheet1"):
     # 4.3) Kolonları tekrar güncelleyip yeni isimler atayalım
     rename_map = {
         "UrunAdi": "Ürün Adı",
-        "AlisFiyati": "Sitedeki Alış Fiyatı",
+        "AlisFiyati": "Alış Fiyatı",
         "SatisFiyati": "Satış Fiyatı",
         "AramaTerimleri": "Resim Yüklenme Tarihi",
         "MorhipoKodu": "Günlük Ortalama Satış Adedi",
