@@ -222,6 +222,10 @@ def extract_color(urun_adi):
             return words[-1]
     return None
 
+
+
+
+
 # ------------------------------------------------------------
 # 1) Supabase üzerinden Ürün Listesi (tum_urun_listesi.xlsx) İndirme ve İşleme
 # ------------------------------------------------------------
@@ -240,84 +244,76 @@ temp_df = pd.read_excel(BytesIO(response))
 
 # Kullanmak istediğimiz sütunlar
 selected_columns = [
-    "ModelKodu",    
+    "ModelKodu",
     "StokKodu",
-    "UrunAdi", 
-    "StokAdedi", 
-    "AlisFiyati", 
-    "SatisFiyati", 
+    "UrunAdi",
+    "StokAdedi",
+    "AlisFiyati",
+    "SatisFiyati",
     "Kategori",
-    "Resim", 
+    "Resim",
     "AramaTerimleri",
-    "MorhipoKodu", 
+    "MorhipoKodu",
     "VaryasyonMorhipoKodu",
-    "HepsiBuradaKodu", 
-    "Marka", 
-    "N11Kodu", 
+    "HepsiBuradaKodu",
+    "Marka",
+    "N11Kodu",
     "VaryasyonGittiGidiyorKodu",
     "TrendyolKodu",
     "VaryasyonTrendyolKodu",
     "Ozellik",
-    "Varyasyon" 
+    "Varyasyon",
+    "VaryasyonAmazonKodu",
 ]
 df = temp_df[selected_columns].copy()
 
 # --------------------------------------
 # Varyasyon kolonu için özel toplama işlemi
 # --------------------------------------
-# Normal beden sıralaması için yardımcı fonksiyon
 def size_key(v):
-    # Sıralama için önceden tanımlı beden sırası
     predefined_order = ["XXS", "XS", "S", "M", "L", "XL", "XXL", "XXXL"]
     v = v.strip()
     if v in predefined_order:
         return (0, predefined_order.index(v))
     try:
-        # Eğer beden değeri rakamsa sayısal olarak sıralama
         return (1, int(v))
     except ValueError:
-        # Diğer durumlarda alfabetik sıralama
         return (2, v)
 
-# Her ürün grubunda (UrunAdi) yer alan varyasyonlar için stok toplamını toplayıp
-# ve düzenli sıralanmış biçimde "Size : stok" formatında birleştirir.
 def aggregate_variations(grp):
     grp = grp.copy()
-    # "Beden:" ifadesini kaldırıp temiz varyasyon elde edelim
-    grp['clean_var'] = grp['Varyasyon'].str.replace("Beden:", "", regex=False).str.strip()
-    # Temiz varyasyon bazında stok adedi toplamı
-    agg = grp.groupby('clean_var', as_index=False)['StokAdedi'].sum()
-    # Belirlenen sıralama kriterine göre sırala
+    grp["clean_var"] = grp["Varyasyon"].str.replace("Beden:", "", regex=False).str.strip()
+    agg = grp.groupby("clean_var", as_index=False)["StokAdedi"].sum()
     agg = agg.sort_values(by="clean_var", key=lambda col: col.map(lambda x: size_key(x)))
-    # Her satır için "beden : stok" formatını oluştur ve " // " ile birleştir
-    var_str = " // ".join(f"{row['clean_var']} : {row['StokAdedi']}" for _, row in agg.iterrows())
-    return var_str
+    return " // ".join(f"{row['clean_var']} : {row['StokAdedi']}" for _, row in agg.iterrows())
 
-# Her "UrunAdi" için toplanmış varyasyon bilgilerini hesaplayalım
 agg_variations = df.groupby("UrunAdi").apply(aggregate_variations).reset_index(name="Varyasyon_Agg")
-
-# orijinal df'deki Varyasyon kolonunu, hesaplanmış toplu varyasyon sonucu ile güncelleyelim
-# (eski Varyasyon kolonunu drop edip, toplama sonucunu merge ediyoruz)
 df = df.drop(columns=["Varyasyon"]).merge(agg_variations, on="UrunAdi", how="left")
 df.rename(columns={"Varyasyon_Agg": "Varyasyon"}, inplace=True)
 
 # --------------------------------------
 # Diğer işlemler: Benzersiz kayıtlar ve StokAdedi toplama
 # --------------------------------------
-# StokAdedi ve Varyasyon dışındaki sütunlara göre benzersiz kayıtlar
 unique_cols = [c for c in selected_columns if c not in ["StokAdedi", "Varyasyon"]]
 unique_df = df.drop(columns=["StokAdedi"]).drop_duplicates(subset=unique_cols)
 
-# UrunAdi bazında StokAdedi toplanır, negatif sonuçlar 0'a çekilir
-stokadedi_sums = (
-    df.groupby("UrunAdi")["StokAdedi"]
-      .sum()
-      .clip(lower=0)  # negatifleri 0 yap
-      .reset_index()
-)
-
-# Birleştirerek final_df'yi elde edelim
+stokadedi_sums = df.groupby("UrunAdi")["StokAdedi"].sum().clip(lower=0).reset_index()
 final_df = pd.merge(unique_df, stokadedi_sums, on="UrunAdi", how="left")
+
+# --------------------------------------
+# VaryasyonAmazonKodu kolonuna link ekleme (.0 son ekini at)
+# --------------------------------------
+def make_link(pid):
+    if pd.isna(pid):
+        return ""
+    # sayısal değerleri ".0" sız biçime çevir
+    try:
+        pid_str = str(int(float(pid)))
+    except (ValueError, TypeError):
+        pid_str = str(pid).split(".")[0]
+    return f'=HYPERLINK("https://hgstokyonetim.com/api/sigaraurun?productId={pid_str}", "Sigara Ekle/Çıkar")'
+
+final_df["VaryasyonAmazonKodu"] = final_df["VaryasyonAmazonKodu"].apply(make_link)
 
 
 
@@ -1420,7 +1416,8 @@ def duzenleme_islemleri(dosya_adi="Nirvana.xlsx", sayfa_adi="Sheet1"):
         "Adet": "Dünün Satış Adedi",
         "ListeFiyatı": "Liste Fiyatı",
         "Ozellik": "Etiketler",
-        "Varyasyon": "Bedenler"
+        "Varyasyon": "Bedenler",
+        "VaryasyonAmazonKodu": "Sigara Ürün Ekle / Çıkar"
     }
 
     for eski, yeni in rename_map.items():
@@ -1468,7 +1465,8 @@ def duzenleme_islemleri(dosya_adi="Nirvana.xlsx", sayfa_adi="Sheet1"):
         "Marka",
         "Etiketler",
         "Asorti",
-        "Özel Kategoriler"
+        "Özel Kategoriler",
+        "Sigara Ürün Ekle / Çıkar"
     ]
 
     # Mevcut tüm veriyi memory'e alıyoruz (list of dict)
@@ -2683,17 +2681,57 @@ if __name__ == "__main__":
 
 wb = openpyxl.load_workbook("Nirvana.xlsx")
 
-# Genel Rapor sayfasında "Bedenler" kolonunu ayarla (43)
+def px_to_width(px: int) -> float:
+    return round(px / 7, 2)  # yaklaşık dönüşüm
+
+# Hedef genişlikler (px)
+extra_widths_px = {
+    "Resim Yüklenme Tarihi": 150,
+    "Etiketler": 363,
+    "Özel Kategoriler": 706,
+    "Sigara Ürün Ekle / Çıkar": 120,
+    "Kategori": 216,
+}
+
+# -------------------------------------------------
+# Genel Rapor sayfası
+# -------------------------------------------------
 ws = wb["Genel Rapor"]
-ws.column_dimensions[[cell.column_letter for cell in ws[1] if cell.value == "Bedenler"][0]].width = 43
+# Bedenler (43)
+ws.column_dimensions[[c.column_letter for c in ws[1] if c.value == "Bedenler"][0]].width = 43
+# Diğer hedef genişlikler
+for cell in ws[1]:
+    if cell.value in extra_widths_px:
+        ws.column_dimensions[cell.column_letter].width = px_to_width(extra_widths_px[cell.value])
 
-# RPT Raporu sayfasında "Bedenler" kolonunu (43) ve "Instagram Stok Adedi" kolonunu (15) ayarla
+# -------------------------------------------------
+# RPT Raporu sayfası
+# -------------------------------------------------
 ws = wb["RPT Raporu"]
-ws.column_dimensions[[cell.column_letter for cell in ws[1] if cell.value == "Bedenler"][0]].width = 43
-ws.column_dimensions[[cell.column_letter for cell in ws[1] if cell.value == "Instagram Stok Adedi"][0]].width = 15
+# Bedenler (43)
+ws.column_dimensions[[c.column_letter for c in ws[1] if c.value == "Bedenler"][0]].width = 43
+# Instagram Stok Adedi (15)
+ws.column_dimensions[[c.column_letter for c in ws[1] if c.value == "Instagram Stok Adedi"][0]].width = 15
+# Diğer hedef genişlikler
+for cell in ws[1]:
+    if cell.value in extra_widths_px:
+        ws.column_dimensions[cell.column_letter].width = px_to_width(extra_widths_px[cell.value])
 
-# İndirim Raporu sayfasında "Bedenler" kolonunu ayarla (43)
+# -------------------------------------------------
+# İndirim Raporu sayfası
+# -------------------------------------------------
 ws = wb["İndirim Raporu"]
-ws.column_dimensions[[cell.column_letter for cell in ws[1] if cell.value == "Bedenler"][0]].width = 43
+# Bedenler (43)
+ws.column_dimensions[[c.column_letter for c in ws[1] if c.value == "Bedenler"][0]].width = 43
+# Diğer hedef genişlikler
+for cell in ws[1]:
+    if cell.value in extra_widths_px:
+        ws.column_dimensions[cell.column_letter].width = px_to_width(extra_widths_px[cell.value])
 
 wb.save("Nirvana.xlsx")
+
+
+
+
+
+
