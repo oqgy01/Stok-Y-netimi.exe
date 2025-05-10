@@ -1053,9 +1053,9 @@ if sheet_adi in workbook.sheetnames:
                 elif 40 <= alis_fiyati <= 59.99:
                     result = alis_fiyati + 17
                 elif 60 <= alis_fiyati <= 200.99:
-                    result = alis_fiyati * 1.30
+                    result = alis_fiyati * 1.40
                 elif alis_fiyati >= 201:
-                    result = alis_fiyati * 1.25
+                    result = alis_fiyati * 1.35
                 else:
                     result = alis_fiyati
 
