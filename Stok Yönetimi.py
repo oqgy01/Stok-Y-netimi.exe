@@ -525,8 +525,16 @@ df_gmt_grouped = (
     df_gmt.groupby(["urunkodu", "renk", "firmakodu"], as_index=False)["acilmamisadet"].sum()
 )
 
+# GMT
+col_gmt_urun_kodu = (
+    pd.to_numeric(df_gmt_grouped["urunkodu"], errors="coerce")
+      .fillna(0)
+      .round()
+      .astype("Int64")
+)
+
 df_gmt_final = pd.DataFrame({
-    "GMT Ürün Kodu": pd.to_numeric(df_gmt_grouped["urunkodu"], errors="coerce").astype("Int64"),
+    "GMT Ürün Kodu": col_gmt_urun_kodu,
     "Firma Kodu"   : df_gmt_grouped["firmakodu"],
     "GMT Ürün Adı" : df_gmt_grouped["urunkodu"].astype(str) + " - " +
                      df_gmt_grouped["renk"].astype(str)     + " - " +
@@ -540,8 +548,15 @@ df_sita_grouped = (
     df_sita.groupby(["urunkodu", "renk", "firmakodu"], as_index=False)["acilmamisadet"].sum()
 )
 
+col_sita_urun_kodu = (
+    pd.to_numeric(df_sita_grouped["urunkodu"], errors="coerce")
+      .fillna(0)
+      .round()
+      .astype("Int64")
+)
+
 df_sita_final = pd.DataFrame({
-    "SİTA Ürün Kodu": pd.to_numeric(df_sita_grouped["urunkodu"], errors="coerce").astype("Int64"),
+    "SİTA Ürün Kodu": col_sita_urun_kodu,
     "Firma Kodu"    : df_sita_grouped["firmakodu"],
     "SİTA Ürün Adı" : df_sita_grouped["urunkodu"].astype(str) + " - " +
                       df_sita_grouped["renk"].astype(str)     + " - " +
@@ -2729,7 +2744,6 @@ for cell in ws[1]:
         ws.column_dimensions[cell.column_letter].width = px_to_width(extra_widths_px[cell.value])
 
 wb.save("Nirvana.xlsx")
-
 
 
 
