@@ -1929,7 +1929,7 @@ def main():
     # a) Genel Rapor
     hide_columns_by_header(
         wb["Genel Rapor"],
-        ["Resim", "Marka", "Asorti", "StokKodu"]
+        ["Resim", "Marka", "Asorti", "StokKodu", "Üründe Hareket Var mı?"]
     )
 
     # b) RPT Raporu
@@ -1947,6 +1947,7 @@ def main():
         "Liste Fiyatı",
         "Asorti",
         "StokKodu",
+        "Üründe Hareket Var mı?",
     ]
     hide_columns_by_header(wb["RPT Raporu"], rpt_hide_cols)
 
