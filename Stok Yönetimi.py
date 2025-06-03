@@ -343,6 +343,9 @@ final_df["VaryasyonAmazonKodu"] = final_df["VaryasyonAmazonKodu"].apply(make_lin
 
 
 
+
+
+
 # ------------------------------------------------------------
 # 2) Satış Raporu İndirme (Selenium) + Bellekte Parse Edip final_df'ye Ekleme
 # ------------------------------------------------------------
@@ -751,6 +754,23 @@ df_calisma_alani.to_excel("Nirvana.xlsx", index=False)
 
 
 
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
 # -----------------------------------------------------------
 # 1) Nirvana.xlsx'i oku ve firma kodunu ayıkla
 # -----------------------------------------------------------
@@ -978,7 +998,7 @@ if kopya_sayfa_adi in workbook.sheetnames:
 
     if vgk_kolon:
         # 1) En sağdaki ilk boş sütunu belirleyelim
-        yeni_sutun_index = sheet.max_column + 1  # max_column’ın bir sonrasına eklenecek
+        yeni_sutun_index = sheet.max_column + 1  # max_column'ın bir sonrasına eklenecek
 
         # 2) Yeni sütuna, "VaryasyonGittiGidiyorKodu" değerlerini kopyalayalım (opsiyonel)
         for row in range(1, sheet.max_row + 1):
@@ -2750,3 +2770,63 @@ wb.save("Nirvana.xlsx")
 
 
 
+
+# ---------------- PATCH: Re‑calculate and ensure 'Liste Fiyatı' is filled ---------------- #
+import openpyxl
+from openpyxl.styles import numbers
+
+def _recalculate_liste_fiyati(workbook_path: str = "Nirvana.xlsx") -> None:
+    """
+    Ensure the 'Liste Fiyatı' column contains the correct calculated values on all three
+    report sheets. This patch is placed at the *very* end of the script so that no later
+    operation can overwrite it.
+    """
+    wb = openpyxl.load_workbook(workbook_path)
+    target_sheets = [s for s in ["Genel Rapor", "RPT Raporu", "İndirim Raporu"] if s in wb.sheetnames]
+
+    def calc_price(alis: float, kategori: str | None) -> float:
+        if 0 <= alis <= 24.99:
+            result = alis + 10
+        elif 25 <= alis <= 39.99:
+            result = alis + 13
+        elif 40 <= alis <= 59.99:
+            result = alis + 17
+        elif 60 <= alis <= 200.99:
+            result = alis * 1.40
+        else:
+            result = alis * 1.35
+
+        if isinstance(kategori, str) and any(k in kategori for k in ["Parfüm", "Gözlük", "Saat", "Kolye", "Küpe", "Bileklik", "Bilezik"]):
+            result *= 1.20
+        else:
+            result *= 1.10
+
+        return int(round(result)) + 0.99
+
+    for ws in (wb[s] for s in target_sheets):
+        headers = {ws.cell(row=1, column=c).value: c for c in range(1, ws.max_column + 1)}
+        alis_idx   = headers.get("Alış Fiyatı") or headers.get("AlisFiyati")
+        liste_idx  = headers.get("Liste Fiyatı") or headers.get("ListeFiyatı")
+        kategori_idx = headers.get("Kategori")
+        if not (alis_idx and liste_idx):
+            continue
+
+        for row in range(2, ws.max_row + 1):
+            cell_alis = ws.cell(row=row, column=alis_idx).value
+            if cell_alis is None:
+                continue
+            try:
+                alis_val = float(cell_alis)
+            except Exception:
+                continue
+            kategori_val = ws.cell(row=row, column=kategori_idx).value if kategori_idx else ""
+            liste_val = calc_price(alis_val, kategori_val)
+            cell_liste = ws.cell(row=row, column=liste_idx)
+            cell_liste.value = liste_val
+            cell_liste.number_format = '#,##0.00₺'
+
+    wb.save(workbook_path)
+
+if __name__ == "__main__":
+    _recalculate_liste_fiyati()
+# ---------------- END PATCH ------------------------------------------------------------- #
