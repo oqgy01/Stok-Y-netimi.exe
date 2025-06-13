@@ -797,7 +797,7 @@ nirvana_df["FirmaKodu"] = nirvana_df["UrunAdi"].apply(parse_firma_code)
 #    ve "name" alanından kod ayıklama
 # -----------------------------------------------------------
 def login():
-    conn = http.client.HTTPSConnection("siparis.haydigiy.com")
+    conn = http.client.HTTPSConnection("task.haydigiy.com")
 
     login_payload = {
         "apiKey": "MypGcaEInEOTzuYQydgDHQ",
