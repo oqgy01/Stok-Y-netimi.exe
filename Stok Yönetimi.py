@@ -2792,9 +2792,9 @@ def _recalculate_liste_fiyati(workbook_path: str = "Nirvana.xlsx") -> None:
         elif 40 <= alis <= 59.99:
             result = alis + 17
         elif 60 <= alis <= 200.99:
-            result = alis * 1.40
-        else:
             result = alis * 1.35
+        else:
+            result = alis * 1.30
 
         if isinstance(kategori, str) and any(k in kategori for k in ["Parfüm", "Gözlük", "Saat", "Kolye", "Küpe", "Bileklik", "Bilezik"]):
             result *= 1.20
