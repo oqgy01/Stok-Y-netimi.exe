@@ -797,7 +797,7 @@ nirvana_df["FirmaKodu"] = nirvana_df["UrunAdi"].apply(parse_firma_code)
 #    ve "name" alanından kod ayıklama
 # -----------------------------------------------------------
 def login():
-    conn = http.client.HTTPSConnection("task.haydigiy.com")
+    conn = http.client.HTTPSConnection("www.siparis.haydigiy.com")
 
     login_payload = {
         "apiKey": "MypGcaEInEOTzuYQydgDHQ",
@@ -833,7 +833,7 @@ def get_all_vendor_data(token):
     all_items = []
     page_index = 1
     while True:
-        conn = http.client.HTTPSConnection("task.haydigiy.com")
+        conn = http.client.HTTPSConnection("www.siparis.haydigiy.com")
         list_payload = {
             "manufacturerName": "",
             "published": None,
@@ -2523,7 +2523,7 @@ olustur_siparis_sayfasi("Nirvana.xlsx")
 # 1) Token alma ve multi-sayfa vendor verisi çekme
 # -----------------------------------------------------------------------
 def login():
-    conn = http.client.HTTPSConnection("task.haydigiy.com")
+    conn = http.client.HTTPSConnection("www.siparis.haydigiy.com")
 
     login_payload = {
         "apiKey": "MypGcaEInEOTzuYQydgDHQ",
@@ -2558,7 +2558,7 @@ def get_all_vendor_data(token):
     all_items = []
     page_index = 1
     while True:
-        conn = http.client.HTTPSConnection("task.haydigiy.com")
+        conn = http.client.HTTPSConnection("www.siparis.haydigiy.com")
 
         list_payload = {
             "manufacturerName": "",
