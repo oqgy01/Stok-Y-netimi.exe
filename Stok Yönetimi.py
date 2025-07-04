@@ -364,8 +364,8 @@ driver = webdriver.Chrome(service=service, options=chrome_options)
 
 username = "mustafa_kod@haydigiy.com"
 password = "123456"
-login_url = "https://task.haydigiy.com/kullanici-giris/?ReturnUrl=%2Fadmin"
-desired_page_url = "https://task.haydigiy.com/admin/exportorder/edit/154/"
+login_url = "https://www.siparis.haydigiy.com/kullanici-giris/?ReturnUrl=%2Fadmin"
+desired_page_url = "https://www.siparis.haydigiy.com/admin/exportorder/edit/154/"
 
 try:
     # 2.1) Giriş
@@ -404,7 +404,7 @@ finally:
     driver.quit()
 
 # 2.3) Bellekte Satış Raporu verisini alalım
-url = "https://task.haydigiy.com/FaprikaOrderXls/GZPCKE/1/"
+url = "https://www.siparis.haydigiy.com/FaprikaOrderXls/GZPCKE/1/"
 resp = requests.get(url)
 sales_df = pd.read_excel(BytesIO(resp.content))
 
