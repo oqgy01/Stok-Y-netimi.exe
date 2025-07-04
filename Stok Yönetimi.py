@@ -83,7 +83,7 @@ def list_detail_with_http_client():
     # ----------------------------------------------------------------
 
     # 1) Giriş (login) isteği
-    conn = http.client.HTTPSConnection("task.haydigiy.com")
+    conn = http.client.HTTPSConnection("www.siparis.haydigiy.com")
 
     login_payload = {
         "apiKey": "MypGcaEInEOTzuYQydgDHQ",
@@ -117,7 +117,7 @@ def list_detail_with_http_client():
         return
 
     # 2) list-detail isteği
-    conn = http.client.HTTPSConnection("task.haydigiy.com")
+    conn = http.client.HTTPSConnection("www.siparis.haydigiy.com")
 
     list_detail_payload = {
         "searchTerm": None,
@@ -2830,3 +2830,6 @@ def _recalculate_liste_fiyati(workbook_path: str = "Nirvana.xlsx") -> None:
 if __name__ == "__main__":
     _recalculate_liste_fiyati()
 # ---------------- END PATCH ------------------------------------------------------------- #
+
+
+
